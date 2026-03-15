@@ -3,8 +3,13 @@
 }
 
 <div class="container">
-    <h2>Section 2: Word Scramble Race</h2>
-    <p style="font-size: 0.9rem; font-weight: normal; color: #666;">How to Play: Unscramble the letters to find the correct word. You have 15 seconds for each word. Try to get as many correct as you can!</p>
+    <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+            <h2 class="mb-1">Section 2: Word Scramble Race</h2>
+            <p class="mb-0" style="font-size: 0.9rem; font-weight: normal; color: #666;">How to Play: Unscramble the letters to find the correct word. You have 15 seconds for each word. Try to get as many correct as you can!</p>
+        </div>
+        <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#section2ScoreboardModal">Scoreboard</button>
+    </div>
     
     <div class="row mb-3">
         <div class="col">
@@ -41,7 +46,7 @@
                         <button id="nextBtn" class="btn btn-primary btn-lg" style="display: none;">Next Word →</button>
                         <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
                         <button id="nextGameBtn" class="btn btn-info btn-lg" style="display: none;">Next Game →</button>
-                        <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#section2ScoreboardModal">Scoreboard</button>
+
                     </div>
                 </div>
             </div>
@@ -62,7 +67,10 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted mb-3">Ranked from best to worst by score.</p>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <p class="text-muted mb-0">Ranked from best to worst by score.</p>
+                    <button id="clearSection2LeaderboardBtn" class="btn btn-outline-danger btn-sm">Clear Leaderboard</button>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
@@ -160,6 +168,12 @@
         }
 
         document.getElementById('openScoreboardBtn').addEventListener('click', fetchSection2Leaderboard);
+
+        document.getElementById('clearSection2LeaderboardBtn').addEventListener('click', async function() {
+            if (!confirm('Clear all leaderboard entries?')) return;
+            await fetch('/api/GameData/leaderboard/section2', { method: 'DELETE' });
+            fetchSection2Leaderboard();
+        });
 
         // Start game
         document.addEventListener('DOMContentLoaded', function() {

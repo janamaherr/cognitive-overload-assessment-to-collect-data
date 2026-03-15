@@ -331,6 +331,27 @@ namespace CognitiveOverloadLMS.Controllers
             }
         }
 
+        [HttpDelete("leaderboard/section1")]
+        public async Task<IActionResult> ClearSection1Leaderboard()
+        {
+            await _section1Results.DeleteManyAsync(_ => true);
+            return Ok(new { success = true });
+        }
+
+        [HttpDelete("leaderboard/section2")]
+        public async Task<IActionResult> ClearSection2Leaderboard()
+        {
+            await _section2Results.DeleteManyAsync(_ => true);
+            return Ok(new { success = true });
+        }
+
+        [HttpDelete("leaderboard/section3")]
+        public async Task<IActionResult> ClearSection3Leaderboard()
+        {
+            await _section3Results.DeleteManyAsync(_ => true);
+            return Ok(new { success = true });
+        }
+
         private IMongoCollection<GameResult>? GetSectionCollection(int sectionNumber)
         {
             return sectionNumber switch

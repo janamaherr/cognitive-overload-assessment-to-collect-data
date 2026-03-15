@@ -5,8 +5,13 @@
 <div class="d-flex flex-column align-items-center py-5" style="background:#f8f9fa;min-height:100vh;">
     <div class="card shadow-lg" style="max-width:800px;width:100%;border-radius:1rem;">
         <div class="card-body p-4">
-            <h2 class="text-center mb-3" style="font-weight:600;letter-spacing:0.02em;">Memory Pattern Challenge</h2>
-            <p class="text-center text-muted" style="font-size:0.9rem;">How to Play: Watch the sequence of highlighted squares carefully; when it ends, repeat the pattern by clicking the squares in order.</p>
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div class="flex-grow-1">
+                    <h2 class="text-center mb-1" style="font-weight:600;letter-spacing:0.02em;">Memory Pattern Challenge</h2>
+                    <p class="text-center text-muted mb-0" style="font-size:0.9rem;">How to Play: Watch the sequence of highlighted squares carefully; when it ends, repeat the pattern by clicking the squares in order.</p>
+                </div>
+                <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#scoreboardModal">Scoreboard</button>
+            </div>
             
             <div class="d-flex justify-content-end align-items-center my-3">
                 <div><strong>Time:</strong> <span id="timer">0</span>s</div>
@@ -25,11 +30,7 @@
                 <button id="nextGameBtn" class="btn btn-info btn-lg" style="display: none;">Next Game →</button>
             </div>
 
-            <div class="mt-4">
-                <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#scoreboardModal">
-                    Open Scoreboard
-                </button>
-            </div>
+
         </div>
     </div>
 </div>
@@ -42,7 +43,10 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted mb-3">Ranked from best to worst by total time.</p>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <p class="text-muted mb-0">Ranked from best to worst by total time.</p>
+                    <button id="clearLeaderboardBtn" class="btn btn-outline-danger btn-sm">Clear Leaderboard</button>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-light">
@@ -164,6 +168,12 @@
         document.getElementById('openScoreboardBtn').addEventListener('click', function() {
             fetchLeaderboard();
         });
+
+        document.getElementById('clearLeaderboardBtn').addEventListener('click', async function() {
+            if (!confirm('Clear all leaderboard entries?')) return;
+            await fetch('/api/GameData/leaderboard/section1', { method: 'DELETE' });
+            fetchLeaderboard();
+        });
         
         function showFeedback(message, isSuccess) {
             const feedback = document.getElementById('feedbackMessage');
@@ -236,9 +246,14 @@
             gameState.sequence = [];
             gameState.userSequence = [];
             gameState.currentAttempts++;
-            
-            for (let i = 0; i < sequenceLength; i++) {
-                gameState.sequence.push(Math.floor(Math.random() * (gameState.gridSize * gameState.gridSize)));
+
+            const totalCells = gameState.gridSize * gameState.gridSize;
+            while (gameState.sequence.length < sequenceLength) {
+                const next = Math.floor(Math.random() * totalCells);
+                // Avoid consecutive duplicates so two flashes on the same cell are never adjacent
+                if (gameState.sequence.length === 0 || next !== gameState.sequence[gameState.sequence.length - 1]) {
+                    gameState.sequence.push(next);
+                }
             }
             
             console.log('Sequence to remember:', gameState.sequence);

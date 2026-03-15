@@ -24,7 +24,12 @@ namespace CognitiveOverloadLMS.Models
         
         [BsonElement("averageHeadMovement")]
         public double AverageHeadMovement { get; set; }
-        
+
+        [BsonElement("lookAwayCount")]
+        public int LookAwayCount { get; set; }
+
+        [BsonElement("headTiltCount")]
+        public int HeadTiltCount { get; set; }
         
         [BsonElement("heartRate")]
         public double HeartRate { get; set; }

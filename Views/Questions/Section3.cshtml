@@ -613,14 +613,14 @@ async function saveGameData(completed) {
                 averageMouseSpeed: mouseData.averageSpeed || 0,
                 averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
                 averageHeadMovement: headData.averageHeadMovement || 0,
+                lookAwayCount: headData.lookAwayCount || 0,
+                headTiltCount: headData.tiltCount || 0,
                 heartRate: 0
             },
             
             gameData: {
                 score: gameState.arrowsStuck,
                 bestScore: gameState.bestScore,
-                headTiltCount: headData.tiltCount || 0,
-                lookingAwayCount: headData.lookAwayCount || 0,
                 arrowThrows: gameState.arrowThrows.map(t => ({
                     timestamp: t.timestamp,
                     angle: t.angle,

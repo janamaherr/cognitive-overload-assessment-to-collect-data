@@ -211,11 +211,8 @@
         }
         
         function resetAndPlayAgain() {
-            // Save current game data first
-            saveGameData(false).then(() => {
-                // Reset for new game
-                startNewGame();
-            });
+            // Game data was already saved when the game ended — just start fresh.
+            startNewGame();
         }
         
         function startTimer() {
@@ -475,6 +472,8 @@
                     averageMouseSpeed: mouseData.averageSpeed || 0,
                     averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
                     averageHeadMovement: headData.averageHeadMovement || 0,
+                    lookAwayCount: headData.lookAwayCount || 0,
+                    headTiltCount: headData.tiltCount || 0,
                     heartRate: 0
                 },
                 gameData: {
@@ -482,9 +481,7 @@
                     sequenceShown: gameState.sequence,
                     sequenceClicked: gameState.userSequence,
                     correctClicks: gameState.userSequence.filter((val, idx) => val === gameState.sequence[idx]).length,
-                    totalAttempts: gameState.currentAttempts,
-                    headTiltCount: headData.tiltCount || 0,
-                    lookingAwayCount: headData.lookAwayCount || 0
+                    totalAttempts: gameState.currentAttempts
                 }
             };
             

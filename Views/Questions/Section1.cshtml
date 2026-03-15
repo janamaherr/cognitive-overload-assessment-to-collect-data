@@ -8,8 +8,7 @@
             <h2 class="text-center mb-3" style="font-weight:600;letter-spacing:0.02em;">Memory Pattern Challenge</h2>
             <p class="text-center text-muted" style="font-size:0.9rem;">How to Play: Watch the sequence of highlighted squares carefully; when it ends, repeat the pattern by clicking the squares in order.</p>
             
-            <div class="d-flex justify-content-between align-items-center my-3">
-                <div><strong>Score:</strong> <span id="score">0</span></div>
+            <div class="d-flex justify-content-end align-items-center my-3">
                 <div><strong>Time:</strong> <span id="timer">0</span>s</div>
             </div>
 
@@ -25,6 +24,40 @@
                 <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
                 <button id="nextGameBtn" class="btn btn-info btn-lg" style="display: none;">Next Game →</button>
             </div>
+
+            <div class="mt-4">
+                <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#scoreboardModal">
+                    Open Scoreboard
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scoreboardModal" tabindex="-1" aria-labelledby="scoreboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="scoreboardModalLabel">Section 1 Winners Scoreboard</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Ranked from best to worst by total time.</p>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player Name</th>
+                                <th>Time Taken (s)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timeScoreboardBody">
+                            <tr><td colspan="3" class="text-muted">No winners yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -32,6 +65,9 @@
 @section Scripts {
     <script src="~/js/behaviorLogger.js"></script>
     <script src="~/js/mouseSpeed.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow/tfjs@@3.21.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow-models/blazeface@@0.0.7/dist/blazeface.min.js"></script>
+    <script src="~/js/headTracker.js"></script>
     <script>
         // Game state
         let gameState = {
@@ -55,10 +91,12 @@
         // Initialize behavior tracking
         const behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
         const mouseTracker = new MouseSpeedTracker();
+        const headTracker = new HeadTracker();
         
         // Timer
         let timerInterval;
         let seconds = 0;
+        const timeScoreboard = [];
         
         // Test API function
         document.getElementById('testApiBtn')?.addEventListener('click', async function() {
@@ -122,6 +160,10 @@
         document.getElementById('playAgainBtn').addEventListener('click', function() {
             resetAndPlayAgain();
         });
+
+        document.getElementById('openScoreboardBtn').addEventListener('click', function() {
+            fetchLeaderboard();
+        });
         
         function showFeedback(message, isSuccess) {
             const feedback = document.getElementById('feedbackMessage');
@@ -136,27 +178,26 @@
         }
         
         function startNewGame() {
-            gameState.startTime = new Date().toISOString();
+            gameState.startTime = null;
             gameState.gameStarted = true;
             gameState.gameCompleted = false;
-            gameState.score = 0;
             gameState.currentAttempts = 0;
             seconds = 0;
-            
-            document.getElementById('score').textContent = gameState.score;
+
             document.getElementById('startGameBtn').style.display = 'none';
             document.getElementById('nextGameBtn').style.display = 'none';
             document.getElementById('playAgainBtn').style.display = 'none';
             
-            startTimer();
+            document.getElementById('timer').textContent = '0';
             generateGrid();
             startLevel();
             
             // Start tracking behavior
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
+            headTracker.startTracking();
             
-            console.log('Game started at:', gameState.startTime);
+            console.log('Game initialized. Waiting for player turn to start timing.');
         }
         
         function resetAndPlayAgain() {
@@ -232,6 +273,10 @@
                                     document.querySelectorAll('.memory-cell').forEach(cell => {
                                         cell.style.pointerEvents = 'auto';
                                     });
+                                    // Start persisted timing exactly when the player's turn begins.
+                                    gameState.startTime = new Date().toISOString();
+                                    // Start timer only when sequence is done and player can begin input.
+                                    startTimer();
                                     showFeedback('Your turn! Click the squares in the same order.', true);
                                 }, 500);
                             }
@@ -265,8 +310,6 @@
                 // Check if sequence is complete
                 if (gameState.userSequence.length === gameState.sequence.length) {
                     // Completed the sequence correctly!
-                    gameState.score += 10;
-                    document.getElementById('score').textContent = gameState.score;
                     
                     showFeedback('🎉 Perfect! You remembered the sequence!', true);
                     gameState.gameCompleted = true;
@@ -280,6 +323,8 @@
                     clearInterval(timerInterval);
                     document.getElementById('nextGameBtn').style.display = 'inline-block';
                     document.getElementById('playAgainBtn').style.display = 'inline-block';
+
+                    updateTimeScoreboard(seconds, true);
                     
                     // Save the successful game data
                     saveGameData(true);
@@ -309,16 +354,72 @@
                 // Show both play again and next game buttons
                 document.getElementById('playAgainBtn').style.display = 'inline-block';
                 document.getElementById('nextGameBtn').style.display = 'inline-block';
+
+                updateTimeScoreboard(seconds, false);
+
+                // Save the failed game data
+                saveGameData(false);
             }
             
             // Log behavior data
             behaviorLogger.logMouseClick(cellIndex);
         }
+
+        function updateTimeScoreboard(totalTimeSeconds, completed) {
+            // Only winners are included in the ranking list.
+            if (!completed) {
+                return;
+            }
+
+            fetchLeaderboard();
+        }
+
+        function renderTimeScoreboard() {
+            timeScoreboard.sort((a, b) => a.totalTimeSeconds - b.totalTimeSeconds);
+
+            const tbody = document.getElementById('timeScoreboardBody');
+            tbody.innerHTML = '';
+
+            if (timeScoreboard.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-muted">No winners yet.</td></tr>';
+                return;
+            }
+
+            timeScoreboard.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${entry.playerName}</td>
+                    <td>${entry.totalTimeSeconds.toFixed(1)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function fetchLeaderboard() {
+            try {
+                const response = await fetch('/api/GameData/leaderboard/section1');
+                const data = await response.json();
+
+                if (!data.success) {
+                    console.error('Failed to fetch leaderboard:', data.error);
+                    return;
+                }
+
+                timeScoreboard.length = 0;
+                timeScoreboard.push(...(data.leaderboard || []));
+                renderTimeScoreboard();
+            } catch (error) {
+                console.error('Error fetching leaderboard:', error);
+            }
+        }
         
         async function saveGameData(completed) {
             // Stop tracking
             mouseTracker.stopTracking();
+            headTracker.stopTracking();
             const mouseData = mouseTracker.getData();
+            const headData = headTracker.getData();
             
             // Collect behavior data
             const behaviorData = behaviorLogger.endGame();
@@ -333,6 +434,9 @@
                         endTime: pause.endTime ? new Date(pause.endTime).toISOString() : null
                     }));
             }
+
+            // Keep hesitation pauses bounded to avoid large array documents.
+            const boundedHesitationPauses = (behaviorData.hesitationPauses || []).slice(-30);
             
             console.log("Ending game...");
             console.log("Game State:", gameState);
@@ -342,26 +446,30 @@
                 sessionId: gameState.sessionId,
                 gameType: gameState.gameType,
                 sectionNumber: gameState.sectionNumber,
-                startTime: gameState.startTime,
+                startTime: gameState.startTime || new Date(Date.now() - (seconds * 1000)).toISOString(),
                 endTime: new Date().toISOString(),
-                score: gameState.score,
+                score: 0,
                 totalTimeSeconds: seconds,
                 completed: completed,
                 behaviorData: {
-                    mouseMovements: mouseData.movements || [],
-                    typingEvents: behaviorData.typingEvents || [],
-                    headPositions: behaviorData.headPositions || [],
-                    hesitationPauses: behaviorData.hesitationPauses || [],
+                    // Store only compact fields for query/index efficiency.
+                    mouseMovements: [],
+                    typingEvents: [],
+                    headPositions: [],
+                    hesitationPauses: boundedHesitationPauses,
                     averageMouseSpeed: mouseData.averageSpeed || 0,
-                    averageTypingSpeed: 0,
-                    averageHeadMovement: 0
+                    averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
+                    averageHeadMovement: headData.averageHeadMovement || 0,
+                    heartRate: 0
                 },
                 gameData: {
                     gridSize: gameState.gridSize,
                     sequenceShown: gameState.sequence,
                     sequenceClicked: gameState.userSequence,
                     correctClicks: gameState.userSequence.filter((val, idx) => val === gameState.sequence[idx]).length,
-                    totalAttempts: gameState.currentAttempts
+                    totalAttempts: gameState.currentAttempts,
+                    headTiltCount: headData.tiltCount || 0,
+                    lookingAwayCount: headData.lookAwayCount || 0
                 }
             };
             
@@ -380,6 +488,9 @@
                 
                 if (data.success) {
                     console.log("Game data saved successfully!");
+                    if (completed) {
+                        fetchLeaderboard();
+                    }
                 } else {
                     console.error("Failed to save:", data.error);
                 }

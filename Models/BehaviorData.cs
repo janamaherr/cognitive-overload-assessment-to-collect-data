@@ -25,6 +25,7 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("averageHeadMovement")]
         public double AverageHeadMovement { get; set; }
         
+        
         [BsonElement("heartRate")]
         public double HeartRate { get; set; }
     }

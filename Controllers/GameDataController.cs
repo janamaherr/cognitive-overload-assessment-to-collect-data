@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using CognitiveOverloadLMS.Models;
 using CognitiveOverloadLMS.Services;
 using MongoDB.Driver;
+using System.Linq;
 
 namespace CognitiveOverloadLMS.Controllers
 {
@@ -10,12 +11,18 @@ namespace CognitiveOverloadLMS.Controllers
     public class GameDataController : ControllerBase
     {
         private readonly IMongoCollection<GameResult> _gameResults;
+        private readonly IMongoCollection<GameResult> _section1Results;
+        private readonly IMongoCollection<GameResult> _section2Results;
+        private readonly IMongoCollection<GameResult> _section3Results;
         private readonly IMongoCollection<UserSession> _userSessions;
         private readonly ILogger<GameDataController> _logger;
 
         public GameDataController(MongoDBService mongoDBService, ILogger<GameDataController> logger)
         {
             _gameResults = mongoDBService.GetCollection<GameResult>("GameResults");
+            _section1Results = mongoDBService.GetCollection<GameResult>("GameResults_Section1");
+            _section2Results = mongoDBService.GetCollection<GameResult>("GameResults_Section2");
+            _section3Results = mongoDBService.GetCollection<GameResult>("GameResults_Section3");
             _userSessions = mongoDBService.GetCollection<UserSession>("UserSessions");
             _logger = logger;
         }
@@ -75,6 +82,7 @@ namespace CognitiveOverloadLMS.Controllers
                 // Ensure collections are initialized
                 gameResult.BehaviorData ??= new BehaviorData();
                 gameResult.GameData ??= new GameSpecificData();
+                gameResult.GameData = BuildSectionSpecificGameData(gameResult.SectionNumber, gameResult.GameData);
                 
                 // Calculate total time
                 gameResult.TotalTimeSeconds = (gameResult.EndTime - gameResult.StartTime).TotalSeconds;
@@ -90,6 +98,14 @@ namespace CognitiveOverloadLMS.Controllers
                 _logger.LogInformation("Attempting to insert into GameResults collection...");
                 await _gameResults.InsertOneAsync(gameResult);
                 _logger.LogInformation("Successfully inserted into GameResults with ID: {Id}", gameResult.Id);
+
+                // Save to section-specific collection for easier filtering.
+                var sectionCollection = GetSectionCollection(gameResult.SectionNumber);
+                if (sectionCollection != null)
+                {
+                    await sectionCollection.InsertOneAsync(gameResult);
+                    _logger.LogInformation("Inserted into section-specific collection for section {SectionNumber}", gameResult.SectionNumber);
+                }
                 
                 // Then add to UserSession's Games array
                 _logger.LogInformation("Attempting to update UserSession...");
@@ -169,6 +185,145 @@ namespace CognitiveOverloadLMS.Controllers
             {
                 return BadRequest(new { success = false, error = ex.Message });
             }
+        }
+
+        [HttpGet("leaderboard/section1")]
+        public async Task<IActionResult> GetSection1Leaderboard()
+        {
+            try
+            {
+                // Fetch only completed runs for Section 1 and sort by best (lowest) total time.
+                var winners = await _section1Results
+                    .Find(r => r.Completed)
+                    .SortBy(r => r.TotalTimeSeconds)
+                    .ToListAsync();
+
+                if (!winners.Any())
+                {
+                    return Ok(new { success = true, leaderboard = Array.Empty<object>() });
+                }
+
+                var sessionIds = winners
+                    .Where(w => !string.IsNullOrWhiteSpace(w.SessionId))
+                    .Select(w => w.SessionId)
+                    .Distinct()
+                    .ToList();
+
+                var sessions = await _userSessions
+                    .Find(s => sessionIds.Contains(s.Id!))
+                    .ToListAsync();
+
+                var sessionNameMap = sessions.ToDictionary(s => s.Id!, s => s.UserName);
+
+                var leaderboard = winners.Select((w, index) => new
+                {
+                    rank = index + 1,
+                    playerName = sessionNameMap.TryGetValue(w.SessionId, out var name) ? name : "Unknown",
+                    totalTimeSeconds = w.TotalTimeSeconds
+                });
+
+                return Ok(new { success = true, leaderboard });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching Section 1 leaderboard");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet("leaderboard/section3")]
+        public async Task<IActionResult> GetSection3Leaderboard()
+        {
+            try
+            {
+                // Best to worst by score; for ties, lower time ranks higher.
+                var results = await _section3Results
+                    .Find(_ => true)
+                    .SortByDescending(r => r.Score)
+                    .ThenBy(r => r.TotalTimeSeconds)
+                    .ToListAsync();
+
+                if (!results.Any())
+                {
+                    return Ok(new { success = true, leaderboard = Array.Empty<object>() });
+                }
+
+                var sessionIds = results
+                    .Where(r => !string.IsNullOrWhiteSpace(r.SessionId))
+                    .Select(r => r.SessionId)
+                    .Distinct()
+                    .ToList();
+
+                var sessions = await _userSessions
+                    .Find(s => sessionIds.Contains(s.Id!))
+                    .ToListAsync();
+
+                var sessionNameMap = sessions.ToDictionary(s => s.Id!, s => s.UserName);
+
+                var leaderboard = results.Select((r, index) => new
+                {
+                    rank = index + 1,
+                    playerName = sessionNameMap.TryGetValue(r.SessionId, out var name) ? name : "Unknown",
+                    score = r.Score,
+                    totalTimeSeconds = r.TotalTimeSeconds
+                });
+
+                return Ok(new { success = true, leaderboard });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching Section 3 leaderboard");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
+        private IMongoCollection<GameResult>? GetSectionCollection(int sectionNumber)
+        {
+            return sectionNumber switch
+            {
+                1 => _section1Results,
+                2 => _section2Results,
+                3 => _section3Results,
+                _ => null
+            };
+        }
+
+        private static GameSpecificData BuildSectionSpecificGameData(int sectionNumber, GameSpecificData source)
+        {
+            source ??= new GameSpecificData();
+
+            return sectionNumber switch
+            {
+                // Section 1: Memory Pattern Challenge
+                1 => new GameSpecificData
+                {
+                    GridSize = source.GridSize,
+                    SequenceShown = source.SequenceShown,
+                    SequenceClicked = source.SequenceClicked,
+                    CorrectClicks = source.CorrectClicks
+                },
+
+                // Section 2: Word Scramble Race
+                2 => new GameSpecificData
+                {
+                    WordsCompleted = source.WordsCompleted,
+                    CorrectCount = source.CorrectCount,
+                    TotalWords = source.TotalWords,
+                    AverageWPM = source.AverageWPM,
+                    Accuracy = source.Accuracy
+                },
+
+                // Section 3: Twisty Arrow Game
+                3 => new GameSpecificData
+                {
+                    Score = source.Score,
+                    BestScore = source.BestScore,
+                    ArrowThrows = source.ArrowThrows
+                },
+
+                // Fallback: keep incoming data as-is for unknown sections
+                _ => source
+            };
         }
     }
 }

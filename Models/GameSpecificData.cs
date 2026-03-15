@@ -5,33 +5,55 @@ namespace CognitiveOverloadLMS.Models
     public class GameSpecificData
     {
         // Memory Game Data
-        public int GridSize { get; set; }
-        public List<int> SequenceShown { get; set; } = new();
-        public List<int> SequenceClicked { get; set; } = new();
-        public int CorrectClicks { get; set; }
+        [BsonElement("gridSize")]
+        [BsonIgnoreIfNull]
+        public int? GridSize { get; set; }
+
+        [BsonElement("sequenceShown")]
+        [BsonIgnoreIfNull]
+        public List<int>? SequenceShown { get; set; }
+
+        [BsonElement("sequenceClicked")]
+        [BsonIgnoreIfNull]
+        public List<int>? SequenceClicked { get; set; }
+
+        [BsonElement("correctClicks")]
+        [BsonIgnoreIfNull]
+        public int? CorrectClicks { get; set; }
         
         // Word Scramble Data
         [BsonElement("wordsCompleted")]
-        public List<WordResult> WordsCompleted { get; set; } = new();
+        [BsonIgnoreIfNull]
+        public List<WordResult>? WordsCompleted { get; set; }
         
         [BsonElement("correctCount")]
-        public int CorrectCount { get; set; }
+        [BsonIgnoreIfNull]
+        public int? CorrectCount { get; set; }
         
         [BsonElement("totalWords")]
-        public int TotalWords { get; set; }
+        [BsonIgnoreIfNull]
+        public int? TotalWords { get; set; }
         
         [BsonElement("averageWPM")]
-        public double AverageWPM { get; set; }
+        [BsonIgnoreIfNull]
+        public double? AverageWPM { get; set; }
         
         [BsonElement("accuracy")]
-        public double Accuracy { get; set; }
+        [BsonIgnoreIfNull]
+        public double? Accuracy { get; set; }
         
         // Arrow Challenge Data - Simplified
-        public int Score { get; set; }
+        [BsonElement("score")]
+        [BsonIgnoreIfNull]
+        public int? Score { get; set; }
         
-        public int BestScore { get; set; }
-    
-        public List<ArrowThrow> ArrowThrows { get; set; } = new();
+        [BsonElement("bestScore")]
+        [BsonIgnoreIfNull]
+        public int? BestScore { get; set; }
+
+        [BsonElement("arrowThrows")]
+        [BsonIgnoreIfNull]
+        public List<ArrowThrow>? ArrowThrows { get; set; }
     }
     
     public class WordResult

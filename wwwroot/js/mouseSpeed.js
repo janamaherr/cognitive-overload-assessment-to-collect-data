@@ -1,64 +1,68 @@
 class MouseSpeedTracker {
     constructor() {
-        this.positions = [];
+        this.movements = [];
+        this.lastPosition = null;
+        this.lastTime = null;
+        this.lastSpeed = 0;
         this.isTracking = false;
-        this.samples = [];
+        this.handler = null;
     }
-    
+
     startTracking() {
         this.isTracking = true;
-        this.positions = [];
-        this.samples = [];
-        
-        this.trackInterval = setInterval(() => {
-            if (this.isTracking && this.positions.length > 1) {
-                this.calculateSpeed();
-            }
-        }, 100);
+        this.handler = (e) => this.recordMovement(e);
+        document.addEventListener('mousemove', this.handler);
     }
-    
+
+    recordMovement(e) {
+        const now = Date.now();
+        const current = { x: e.clientX, y: e.clientY, time: now };
+
+        if (this.lastPosition) {
+            const dx = current.x - this.lastPosition.x;
+            const dy = current.y - this.lastPosition.y;
+            const dt = (now - this.lastTime) / 1000;
+            if (dt > 0) {
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const speed = distance / dt;
+                const acceleration = (speed - this.lastSpeed) / dt;
+                this.lastSpeed = speed;
+
+                this.movements.push({
+                    timestamp: new Date(now).toISOString(),
+                    x: Math.round(current.x),
+                    y: Math.round(current.y),
+                    speed: parseFloat(speed.toFixed(2)),
+                    acceleration: parseFloat(acceleration.toFixed(2))
+                });
+
+                // Keep max 500 samples
+                if (this.movements.length > 500) this.movements.shift();
+            }
+        }
+
+        this.lastPosition = current;
+        this.lastTime = now;
+    }
+
     stopTracking() {
         this.isTracking = false;
-        if (this.trackInterval) {
-            clearInterval(this.trackInterval);
+        if (this.handler) {
+            document.removeEventListener('mousemove', this.handler);
         }
     }
-    
-    calculateSpeed() {
-        if (this.positions.length < 2) return;
-        
-        const latest = this.positions[this.positions.length - 1];
-        const previous = this.positions[this.positions.length - 2];
-        
-        const deltaTime = (latest.timestamp - previous.timestamp) / 1000; // in seconds
-        if (deltaTime <= 0) return;
-        
-        const deltaX = latest.x - previous.x;
-        const deltaY = latest.y - previous.y;
-        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        const speed = distance / deltaTime; // pixels per second
-        
-        this.samples.push({
-            timestamp: latest.timestamp,
-            speed: speed,
-            x: latest.x,
-            y: latest.y
-        });
-    }
-    
+
     getData() {
+        const speeds = this.movements.map(m => m.speed);
+        const avgSpeed = speeds.length > 0
+            ? speeds.reduce((a, b) => a + b, 0) / speeds.length
+            : 0;
+
         return {
-            movements: this.samples,
-            averageSpeed: this.samples.length > 0 
-                ? this.samples.reduce((sum, s) => sum + s.speed, 0) / this.samples.length 
-                : 0,
-            maxSpeed: this.samples.length > 0 
-                ? Math.max(...this.samples.map(s => s.speed)) 
-                : 0,
-            totalSamples: this.samples.length
+            movements: this.movements,
+            averageSpeed: parseFloat(avgSpeed.toFixed(2)),
+            maxSpeed: speeds.length > 0 ? Math.max(...speeds) : 0,
+            totalSamples: this.movements.length
         };
     }
 }
-
-// Export for use in other files
-window.MouseSpeedTracker = MouseSpeedTracker;

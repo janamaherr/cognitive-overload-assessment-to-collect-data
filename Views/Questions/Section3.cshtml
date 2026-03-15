@@ -26,6 +26,12 @@
                 <button id="startGameBtn" class="btn btn-success btn-lg">Start Game</button>
                 <button id="shootBtn" class="btn btn-primary btn-lg" disabled>Shoot (Space)</button>
                 <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
+                <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#section3ScoreboardModal">Scoreboard</button>
+            </div>
+
+            <div class="form-check form-switch mt-3 d-inline-flex align-items-center gap-2">
+                <input class="form-check-input" type="checkbox" id="headTrackingToggle">
+                <label class="form-check-label text-muted" for="headTrackingToggle">Enable head tracking (may reduce performance)</label>
             </div>
             
             <div class="mt-3">
@@ -38,9 +44,41 @@
     </div>
 </div>
 
+<div class="modal fade" id="section3ScoreboardModal" tabindex="-1" aria-labelledby="section3ScoreboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="section3ScoreboardModalLabel">Section 3 Scoreboard</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Ranked from best to worst by score.</p>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player Name</th>
+                                <th>Score</th>
+                                <th>Time (s)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="section3ScoreboardBody">
+                            <tr><td colspan="4" class="text-muted">No records yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="~/js/behaviorLogger.js"></script>
     <script src="~/js/mouseSpeed.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow/tfjs@@3.21.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow-models/blazeface@@0.0.7/dist/blazeface.min.js"></script>
+    <script src="~/js/headTracker.js"></script>
     <script>
         // Game state
         let gameState = {
@@ -76,6 +114,9 @@
         // Tracking
         let behaviorLogger;
         let mouseTracker;
+        let headTracker;
+        let isHeadTrackingEnabled = true;
+        const section3Leaderboard = [];
 
         // Verify session
         if (!gameState.sessionId) {
@@ -85,6 +126,14 @@
 
         // Update best score
         document.getElementById('bestScore').textContent = gameState.bestScore;
+        document.getElementById('openScoreboardBtn').addEventListener('click', fetchSection3Leaderboard);
+        const headTrackingToggle = document.getElementById('headTrackingToggle');
+        if (headTrackingToggle) {
+            headTrackingToggle.checked = true;
+            headTrackingToggle.addEventListener('change', (e) => {
+                isHeadTrackingEnabled = e.target.checked;
+            });
+        }
 
         // Arrow class
         // adjust this constant to fine-tune how close arrows can be before colliding
@@ -388,9 +437,10 @@
 
         // Start game
         function startGame() {
-            if (!behaviorLogger || !mouseTracker) {
+            if (!behaviorLogger || !mouseTracker || !headTracker) {
                 behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
                 mouseTracker = new MouseSpeedTracker();
+                headTracker = new HeadTracker();
             }
             
             gameState.startTime = new Date().toISOString();
@@ -412,6 +462,9 @@
             
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
+            if (isHeadTrackingEnabled) {
+                headTracker.startTracking();
+            }
             
             if (animationFrame) cancelAnimationFrame(animationFrame);
             draw();
@@ -449,6 +502,45 @@
             startGame();
         }
 
+        function renderSection3Leaderboard() {
+            const tbody = document.getElementById('section3ScoreboardBody');
+            tbody.innerHTML = '';
+
+            if (section3Leaderboard.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No records yet.</td></tr>';
+                return;
+            }
+
+            section3Leaderboard.forEach(entry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${entry.rank}</td>
+                    <td>${entry.playerName}</td>
+                    <td>${entry.score}</td>
+                    <td>${Number(entry.totalTimeSeconds || 0).toFixed(1)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function fetchSection3Leaderboard() {
+            try {
+                const response = await fetch('/api/GameData/leaderboard/section3');
+                const data = await response.json();
+
+                if (!data.success) {
+                    console.error('Failed to fetch Section 3 leaderboard:', data.error);
+                    return;
+                }
+
+                section3Leaderboard.length = 0;
+                section3Leaderboard.push(...(data.leaderboard || []));
+                renderSection3Leaderboard();
+            } catch (error) {
+                console.error('Error fetching Section 3 leaderboard:', error);
+            }
+        }
+
        // Save game data
 async function saveGameData(completed) {
     try {
@@ -465,6 +557,12 @@ async function saveGameData(completed) {
         
         mouseTracker.stopTracking();
         const mouseData = mouseTracker.getData();
+        if (isHeadTrackingEnabled) {
+            headTracker.stopTracking();
+        }
+        const headData = isHeadTrackingEnabled
+            ? headTracker.getData()
+            : { headPositions: [], averageHeadMovement: 0, lookAwayCount: 0, tiltCount: 0 };
         
         const behaviorData = behaviorLogger.endGame();
         
@@ -499,13 +597,16 @@ async function saveGameData(completed) {
                 headPositions: [],
                 hesitationPauses: behaviorData.hesitationPauses || [],
                 averageMouseSpeed: mouseData.averageSpeed || 0,
-                averageTypingSpeed: 0,
-                averageHeadMovement: 0
+                averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
+                averageHeadMovement: headData.averageHeadMovement || 0,
+                heartRate: 0
             },
             
             gameData: {
                 score: gameState.arrowsStuck,
                 bestScore: gameState.bestScore,
+                headTiltCount: headData.tiltCount || 0,
+                lookingAwayCount: headData.lookAwayCount || 0,
                 arrowThrows: gameState.arrowThrows.map(t => ({
                     timestamp: t.timestamp,
                     angle: t.angle,
@@ -530,6 +631,7 @@ async function saveGameData(completed) {
         
         if (data.success) {
             console.log('✅ Game data saved successfully! ID:', data.id);
+            fetchSection3Leaderboard();
             if (gameState.arrowsStuck > gameState.bestScore) {
                 gameState.bestScore = gameState.arrowsStuck;
                 localStorage.setItem('twistyArrowBest', gameState.bestScore);

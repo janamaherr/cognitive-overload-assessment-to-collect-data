@@ -15,6 +15,10 @@
             </div>
         </div>
     </div>
+
+    <div class="text-center mb-3">
+        <span class="badge bg-primary fs-6 px-3 py-2">Category: <span id="categoryName">-</span></span>
+    </div>
     
     <!-- Feedback Message -->
     <div id="feedbackMessage" class="alert" style="display: none;"></div>
@@ -37,6 +41,7 @@
                         <button id="nextBtn" class="btn btn-primary btn-lg" style="display: none;">Next Word →</button>
                         <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
                         <button id="nextGameBtn" class="btn btn-info btn-lg" style="display: none;">Next Game →</button>
+                        <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#section2ScoreboardModal">Scoreboard</button>
                     </div>
                 </div>
             </div>
@@ -49,79 +54,73 @@
     </div>
 </div>
 
+<div class="modal fade" id="section2ScoreboardModal" tabindex="-1" aria-labelledby="section2ScoreboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="section2ScoreboardModalLabel">Section 2 Scoreboard</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Ranked from best to worst by score.</p>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player Name</th>
+                                <th>Score</th>
+                                <th>Correct Words</th>
+                            </tr>
+                        </thead>
+                        <tbody id="section2ScoreboardBody">
+                            <tr><td colspan="4" class="text-muted">No records yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="~/js/behaviorLogger.js"></script>
     <script src="~/js/mouseSpeed.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow/tfjs@@3.21.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow-models/blazeface@@0.0.7/dist/blazeface.min.js"></script>
+    <script src="~/js/headTracker.js"></script>
     <script>
-        // Word database - Objects and Countries/Capitals
-        const words = [
-            // Objects
-            { original: "APPLE", scrambled: "PAPEL" },
-            { original: "TABLE", scrambled: "EBLAT" },
-            { original: "CHAIR", scrambled: "IHACR" },
-            { original: "BREAD", scrambled: "ABEDR" },
-            { original: "WATER", scrambled: randomizeLetters("WATER") },
-            { original: "LIGHT", scrambled: randomizeLetters("LIGHT") },
-            { original: "PLANT", scrambled: randomizeLetters("PLANT") },
-            { original: "RIVER", scrambled: randomizeLetters("RIVER") },
-            { original: "STONE", scrambled: randomizeLetters("STONE") },
-            { original: "CLOUD", scrambled: randomizeLetters("CLOUD") },
-            { original: "TRAIN", scrambled: randomizeLetters("TRAIN") },
-            { original: "PLANE", scrambled: randomizeLetters("PLANE") },
-            { original: "BRUSH", scrambled: randomizeLetters("BRUSH") },
-            { original: "CLOCK", scrambled: randomizeLetters("CLOCK") },
-            { original: "PAPER", scrambled: randomizeLetters("PAPER") },
-            { original: "PENCIL", scrambled: randomizeLetters("PENCIL") },
-            { original: "WINDOW", scrambled: randomizeLetters("WINDOW") },
-            { original: "MIRROR", scrambled: randomizeLetters("MIRROR") },
-            { original: "GARDEN", scrambled: randomizeLetters("GARDEN") },
-            { original: "FLOWER", scrambled: randomizeLetters("FLOWER") },
-            { original: "BUTTER", scrambled: randomizeLetters("BUTTER") },
-            { original: "CHEESE", scrambled: randomizeLetters("CHEESE") },
-            { original: "ORANGE", scrambled: randomizeLetters("ORANGE") },
-            { original: "BANANA", scrambled: randomizeLetters("BANANA") },
-            { original: "GRAPES", scrambled: randomizeLetters("GRAPES") },
-            { original: "COFFEE", scrambled: randomizeLetters("COFFEE") },
-            { original: "SUGAR", scrambled: randomizeLetters("SUGAR") },
-            { original: "CANDLE", scrambled: randomizeLetters("CANDLE") },
-            { original: "PILLOW", scrambled: randomizeLetters("PILLOW") },
-            { original: "BLANKET", scrambled: randomizeLetters("BLANKET") },
-            { original: "UMBRELLA", scrambled: randomizeLetters("UMBRELLA") },
-            { original: "LANTERN", scrambled: randomizeLetters("LANTERN") },
-            { original: "GUITAR", scrambled: randomizeLetters("GUITAR") },
-            { original: "DRUMS", scrambled: randomizeLetters("DRUMS") },
-            { original: "VIOLIN", scrambled: randomizeLetters("VIOLIN") },
-            { original: "PIANO", scrambled: randomizeLetters("PIANO") },
-            { original: "TRUMPET", scrambled: randomizeLetters("TRUMPET") },
-            // Countries/Capitals
-            { original: "INDIA", scrambled: randomizeLetters("INDIA") },
-            { original: "CHINA", scrambled: randomizeLetters("CHINA") },
-            { original: "JAPAN", scrambled: randomizeLetters("JAPAN") },
-            { original: "SPAIN", scrambled: randomizeLetters("SPAIN") },
-            { original: "ITALY", scrambled: randomizeLetters("ITALY") },
-            { original: "EGYPT", scrambled: randomizeLetters("EGYPT") },
-            { original: "KENYA", scrambled: randomizeLetters("KENYA") },
-            { original: "BRAZIL", scrambled: randomizeLetters("BRAZIL") },
-            { original: "CHILE", scrambled: randomizeLetters("CHILE") },
-            { original: "PERU", scrambled: randomizeLetters("PERU") },
-            { original: "PARIS", scrambled: randomizeLetters("PARIS") },
-            { original: "TOKYO", scrambled: randomizeLetters("TOKYO") },
-            { original: "CAIRO", scrambled: randomizeLetters("CAIRO") },
-            { original: "ROME", scrambled: randomizeLetters("ROME") },
-            { original: "MADRID", scrambled: randomizeLetters("MADRID") },
-            { original: "BERLIN", scrambled: randomizeLetters("BERLIN") },
-            { original: "LONDON", scrambled: randomizeLetters("LONDON") },
-            { original: "VIENNA", scrambled: randomizeLetters("VIENNA") }
-        ];
+        // Word database grouped by category (one word from each category per round)
+        const wordCategories = {
+            animals: ["CAT", "DOG", "LION", "BEAR", "DUCK", "FISH", "WOLF", "FROG", "DEER", "GOAT", "HORSE", "SNAKE", "MONKEY", "PANDA", "ZEBRA"],
+            fruits: ["APPLE", "PEAR", "GRAPE", "MANGO", "PEACH", "LEMON", "MELON", "BERRY", "ORANGE", "BANANA", "KIWI","STRAWBERRY", "WATERMELON", "PINEAPPLE", "BLUEBERRY"],
+            countries: ["EGYPT", "FRANCE", "SPAIN", "CHINA", "INDIA", "JAPAN", "BRAZIL", "ITALY", "CANADA", "MEXICO", "RUSSIA", "AUSTRALIA", "GERMANY", "GREECE", "PORTUGAL"],
+            colours: ["RED", "BLUE", "GREEN", "BLACK", "WHITE", "BROWN", "PINK", "GRAY", "GOLD", "SILVER", "PURPLE", "ORANGE", "YELLOW"],
+            food: ["BREAD", "RICE", "PASTA", "SOUP", "CAKE", "PIZZA", "SALAD", "CHEESE", "MILK", "EGG", "MEAT", "FISH","SANDWICH", "STEAK", "TOAST"]
+        };
+
+        function pickRandomWord(list) {
+            return list[Math.floor(Math.random() * list.length)];
+        }
         
         // Function to randomize letters
         function randomizeLetters(word) {
+            if (!word || word.length < 2) return word;
+
             const letters = word.split('');
-            for (let i = letters.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [letters[i], letters[j]] = [letters[j], letters[i]];
+            let shuffled = word;
+            let attempts = 0;
+
+            while (shuffled === word && attempts < 8) {
+                for (let i = letters.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [letters[i], letters[j]] = [letters[j], letters[i]];
+                }
+                shuffled = letters.join('');
+                attempts++;
             }
-            return letters.join('');
+
+            return shuffled;
         }
 
         // Game state
@@ -147,6 +146,8 @@
         // Initialize tracking
         const behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
         const mouseTracker = new MouseSpeedTracker();
+        const headTracker = new HeadTracker();
+        const section2Leaderboard = [];
 
         // Timer variables
         let timerInterval;
@@ -158,14 +159,22 @@
             window.location.href = '/';
         }
 
+        document.getElementById('openScoreboardBtn').addEventListener('click', fetchSection2Leaderboard);
+
         // Start game
         document.addEventListener('DOMContentLoaded', function() {
             startNewGame();
         });
 
         function startNewGame() {
-            // Select random words
-            gameState.gameWords = [...words].sort(() => Math.random() - 0.5).slice(0, gameState.totalWords);
+            // Select 1 random word from each category, then shuffle order.
+            gameState.gameWords = [
+                { category: "Animals", original: pickRandomWord(wordCategories.animals) },
+                { category: "Fruits", original: pickRandomWord(wordCategories.fruits) },
+                { category: "Countries", original: pickRandomWord(wordCategories.countries) },
+                { category: "Colours", original: pickRandomWord(wordCategories.colours) },
+                { category: "Food", original: pickRandomWord(wordCategories.food) }
+            ].sort(() => Math.random() - 0.5);
             gameState.currentWordIndex = 0;
             gameState.score = 0;
             gameState.wordsCompleted = [];
@@ -178,6 +187,7 @@
             // Start tracking
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
+            headTracker.startTracking();
             
             loadWord();
         }
@@ -185,6 +195,7 @@
         function loadWord() {
             gameState.currentWordData = gameState.gameWords[gameState.currentWordIndex];
             gameState.wordStartTime = new Date().toISOString();
+            document.getElementById('categoryName').textContent = gameState.currentWordData.category;
             
             // Generate random scrambled version
             const scrambled = randomizeLetters(gameState.currentWordData.original);
@@ -282,6 +293,7 @@
                 (gameState.currentWordData.original.length / 5) / (timeTaken / 60) : 0;
             
             gameState.wordsCompleted.push({
+                category: gameState.currentWordData.category,
                 word: gameState.currentWordData.original,
                 scrambled: randomizeLetters(gameState.currentWordData.original),
                 userAnswer: document.getElementById('userInput').value.toUpperCase().trim(),
@@ -313,10 +325,51 @@
             });
         }
 
+        function renderSection2Leaderboard() {
+            const tbody = document.getElementById('section2ScoreboardBody');
+            tbody.innerHTML = '';
+
+            if (section2Leaderboard.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-muted">No records yet.</td></tr>';
+                return;
+            }
+
+            section2Leaderboard.forEach(entry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${entry.rank}</td>
+                    <td>${entry.playerName}</td>
+                    <td>${entry.score}</td>
+                    <td>${entry.correctCount}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        async function fetchSection2Leaderboard() {
+            try {
+                const response = await fetch('/api/GameData/leaderboard/section2');
+                const data = await response.json();
+
+                if (!data.success) {
+                    console.error('Failed to fetch Section 2 leaderboard:', data.error);
+                    return;
+                }
+
+                section2Leaderboard.length = 0;
+                section2Leaderboard.push(...(data.leaderboard || []));
+                renderSection2Leaderboard();
+            } catch (error) {
+                console.error('Error fetching Section 2 leaderboard:', error);
+            }
+        }
+
         async function saveGameData(completed) {
             // Stop tracking
             mouseTracker.stopTracking();
+            headTracker.stopTracking();
             const mouseData = mouseTracker.getData();
+            const headData = headTracker.getData();
             
             // Collect behavior data
             const behaviorData = behaviorLogger.endGame();
@@ -353,8 +406,9 @@
                     headPositions: [],
                     hesitationPauses: behaviorData.hesitationPauses || [],
                     averageMouseSpeed: mouseData.averageSpeed || 0,
-                    averageTypingSpeed: avgWPM,
-                    averageHeadMovement: 0
+                    averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
+                    averageHeadMovement: headData.averageHeadMovement || 0,
+                    heartRate: 0
                 },
                 
                 gameData: {
@@ -380,6 +434,7 @@
                 if (data.success) {
                     console.log("Game data saved!");
                     showGlobalFeedback('Game saved!', true);
+                    fetchSection2Leaderboard();
                 } else {
                     console.error("Save failed:", data.error);
                 }
@@ -410,24 +465,6 @@
             if (e.key === 'Enter' && !document.getElementById('submitBtn').disabled) {
                 checkAnswer();
             }
-        });
-
-        // Typing speed tracking
-        let lastKeyTime = Date.now();
-        document.getElementById('userInput').addEventListener('keydown', (e) => {
-            const currentTime = Date.now();
-            const delay = currentTime - lastKeyTime;
-            
-            if (behaviorLogger.typingEvents) {
-                behaviorLogger.typingEvents.push({
-                    timestamp: new Date().toISOString(),
-                    key: e.key,
-                    delaySinceLastKeyMs: delay,
-                    speed: delay > 0 ? 60000 / delay : 0
-                });
-            }
-            
-            lastKeyTime = currentTime;
         });
 
         console.log("Word Scramble game initialized with session:", gameState.sessionId);

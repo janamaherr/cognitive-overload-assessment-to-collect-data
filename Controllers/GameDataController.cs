@@ -231,6 +231,60 @@ namespace CognitiveOverloadLMS.Controllers
             }
         }
 
+        [HttpGet("leaderboard/section2")]
+        public async Task<IActionResult> GetSection2Leaderboard()
+        {
+            try
+            {
+                var results = await _section2Results
+                    .Find(_ => true)
+                    .ToListAsync();
+
+                if (!results.Any())
+                {
+                    return Ok(new { success = true, leaderboard = Array.Empty<object>() });
+                }
+
+                var sessionIds = results
+                    .Where(r => !string.IsNullOrWhiteSpace(r.SessionId))
+                    .Select(r => r.SessionId)
+                    .Distinct()
+                    .ToList();
+
+                var sessions = await _userSessions
+                    .Find(s => sessionIds.Contains(s.Id!))
+                    .ToListAsync();
+
+                var sessionNameMap = sessions.ToDictionary(s => s.Id!, s => s.UserName);
+
+                var ranked = results
+                    .Select(r => new
+                    {
+                        SessionId = r.SessionId,
+                        Score = r.Score,
+                        CorrectCount = r.GameData?.CorrectCount ?? 0
+                    })
+                    .OrderByDescending(r => r.Score)
+                    .ThenByDescending(r => r.CorrectCount)
+                    .ToList();
+
+                var leaderboard = ranked.Select((r, index) => new
+                {
+                    rank = index + 1,
+                    playerName = sessionNameMap.TryGetValue(r.SessionId, out var name) ? name : "Unknown",
+                    score = r.Score,
+                    correctCount = r.CorrectCount
+                });
+
+                return Ok(new { success = true, leaderboard });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching Section 2 leaderboard");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
         [HttpGet("leaderboard/section3")]
         public async Task<IActionResult> GetSection3Leaderboard()
         {

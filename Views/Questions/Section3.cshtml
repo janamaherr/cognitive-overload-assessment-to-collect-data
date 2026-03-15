@@ -2,48 +2,176 @@
     ViewData["Title"] = "Twisty Arrow Game";
 }
 
-<div class="container">
-    <div class="d-flex justify-content-between align-items-start mb-2">
-        <div>
-            <h2 class="mb-1">Section 3: Twisty Arrow Game</h2>
-            <p class="mb-0" style="font-size: 0.9rem; font-weight: normal; color: #666;">How to Play: Shoot arrows into the rotating circle without hitting existing arrows. Each arrow you successfully stick increases your score. The game ends if you hit an existing arrow.</p>
+<style>
+    body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); min-height: 100vh; }
+
+    .game-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+
+    .game-card {
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 1.5rem;
+        max-width: 620px;
+        width: 100%;
+        color: #fff;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    .section-badge {
+        display: inline-block;
+        background: linear-gradient(90deg, #f5a623, #f04e23);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        margin-bottom: 0.5rem;
+    }
+
+    .game-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #fff 0%, #ffd4a0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.25rem;
+    }
+
+    .how-to-play { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+
+    .stats-bar {
+        background: rgba(255,255,255,0.08);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .stat-item { text-align: center; }
+    .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); }
+    .stat-value { font-size: 1.5rem; font-weight: 800; color: #f5a623; line-height: 1; }
+
+    #gameCanvas {
+        border-radius: 1rem;
+        border: 2px solid rgba(255,255,255,0.15);
+        box-shadow: 0 0 40px rgba(245,166,35,0.2);
+        background: #0d1b2a;
+        max-width: 100%;
+    }
+
+    .btn-game-primary {
+        background: linear-gradient(90deg, #f5a623, #f04e23);
+        border: none; color: #fff; font-weight: 700;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 4px 15px rgba(245,166,35,0.4);
+    }
+    .btn-game-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(245,166,35,0.6); color: #fff; }
+    .btn-game-primary:disabled { opacity: 0.4; transform: none; }
+
+    .btn-game-success {
+        background: linear-gradient(90deg, #11998e, #38ef7d);
+        border: none; color: #fff; font-weight: 700;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 4px 15px rgba(56,239,125,0.35);
+    }
+    .btn-game-success:hover { transform: translateY(-2px); color: #fff; }
+    .btn-game-success:disabled { opacity: 0.4; transform: none; }
+
+    .btn-game-secondary {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.25);
+        color: rgba(255,255,255,0.8); font-weight: 600;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: all 0.15s;
+    }
+    .btn-game-secondary:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+    .btn-scoreboard {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: rgba(255,255,255,0.75);
+        font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em;
+        padding: 0.3rem 0.9rem; border-radius: 50px;
+        transition: all 0.15s;
+    }
+    .btn-scoreboard:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+    .head-tracking-toggle {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 0.75rem;
+        padding: 0.6rem 1rem;
+        color: rgba(255,255,255,0.6);
+        font-size: 0.82rem;
+    }
+
+    #feedbackMessage {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        min-width: 280px;
+        text-align: center;
+        border-radius: 50px;
+        font-weight: 700;
+        padding: 0.6rem 1.5rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+</style>
+
+<div class="game-wrapper">
+    <div class="game-card p-4 p-md-5">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+                <span class="section-badge">Section 3</span>
+                <h1 class="game-title">Twisty Arrow Game</h1>
+                <p class="how-to-play">Shoot arrows into the rotating circle. Don't hit the existing ones!</p>
+            </div>
+            <button id="openScoreboardBtn" type="button" class="btn btn-scoreboard ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#section3ScoreboardModal">
+                🏆 Scoreboard
+            </button>
         </div>
-        <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#section3ScoreboardModal">Scoreboard</button>
-    </div>
-    
-    <div class="row mb-3">
-        <div class="col">
-            <div class="alert alert-info d-flex justify-content-between align-items-center">
-                <span><strong>Arrows Stuck: <span id="arrowCount">0</span></strong></span>
-                <span><strong>Best: <span id="bestScore">0</span></strong></span>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar mb-4">
+            <div class="stat-item">
+                <div class="stat-label">Arrows Stuck</div>
+                <div class="stat-value"><span id="arrowCount">0</span></div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Best</div>
+                <div class="stat-value"><span id="bestScore">0</span></div>
             </div>
         </div>
-    </div>
-    
-    <!-- Feedback Message -->       
-    <div id="feedbackMessage" class="alert" style="display: none;"></div>
-    
-    <div class="row">
-        <div class="col-md-8 offset-md-2 text-center">
-            <canvas id="gameCanvas" width="500" height="600" style="border: 2px solid #333; background: #f0f0f0;"></canvas>
-            
-            <div class="mt-4">
-                <button id="startGameBtn" class="btn btn-success btn-lg">Start Game</button>
-                <button id="shootBtn" class="btn btn-primary btn-lg" disabled>Shoot (Space)</button>
-                <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
 
-            </div>
+        <!-- Feedback -->
+        <div id="feedbackMessage" class="alert" style="display:none;"></div>
 
-            <div class="form-check form-switch mt-3 d-inline-flex align-items-center gap-2">
+        <!-- Canvas -->
+        <div class="text-center mb-4">
+            <canvas id="gameCanvas" width="500" height="520"></canvas>
+        </div>
+
+        <!-- Buttons -->
+        <div class="d-flex justify-content-center gap-3 flex-wrap mb-3">
+            <button id="startGameBtn" class="btn btn-game-success btn-lg">▶ Start Game</button>
+            <button id="shootBtn" class="btn btn-game-primary btn-lg" disabled>🎯 Shoot (Space)</button>
+            <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">↩ Play Again</button>
+        </div>
+
+        <!-- Head Tracking Toggle -->
+        <div class="head-tracking-toggle d-flex align-items-center gap-2">
+            <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" id="headTrackingToggle">
-                <label class="form-check-label text-muted" for="headTrackingToggle">Enable head tracking (may reduce performance)</label>
-            </div>
-            
-            <div class="mt-3">
-                <p class="text-muted" style="font-size: 0.85rem; font-weight: normal;">Click "Shoot" or press Space to shoot arrows into the rotating circle.</p>
-                <p class="text-muted" style="font-size: 0.85rem; font-weight: normal;">The number in the center shows how many arrows you've stuck.</p>
-                <p class="text-danger" style="font-size: 0.85rem; font-weight: normal;">If your arrow hits an existing arrow → Game Over!</p>
-                <p class="text-success" style="font-size: 0.85rem; font-weight: normal;">Keep shooting arrows and avoid hitting existing ones!</p>
+                <label class="form-check-label" for="headTrackingToggle">Enable head tracking <span style="opacity:0.6;">(may reduce performance)</span></label>
             </div>
         </div>
     </div>
@@ -51,28 +179,28 @@
 
 <div class="modal fade" id="section3ScoreboardModal" tabindex="-1" aria-labelledby="section3ScoreboardModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="section3ScoreboardModalLabel">Section 3 Scoreboard</h5>
+        <div class="modal-content border-0 shadow-lg" style="background:#1a1a2e;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0 pb-0" style="background:linear-gradient(90deg,#f5a623,#f04e23);border-radius:1.25rem 1.25rem 0 0;">
+                <h5 class="modal-title fw-800" id="section3ScoreboardModalLabel">🏆 Section 3 — Top Archers</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body px-4 pt-3">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <p class="text-muted mb-0">Ranked from best to worst by score.</p>
-                    <button id="clearSection3LeaderboardBtn" class="btn btn-outline-danger btn-sm">Clear Leaderboard</button>
+                    <span style="font-size:0.82rem;color:rgba(255,255,255,0.5);">Ranked by highest score</span>
+                    <button id="clearSection3LeaderboardBtn" class="btn btn-sm" style="background:rgba(233,69,96,0.2);border:1px solid rgba(233,69,96,0.5);color:#e94560;border-radius:50px;">🗑 Clear</button>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Rank</th>
-                                <th>Player Name</th>
-                                <th>Score</th>
-                                <th>Time (s)</th>
+                    <table class="table align-middle mb-0" style="color:#fff;">
+                        <thead style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <tr style="color:rgba(255,255,255,0.5);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;">
+                                <th class="fw-normal pb-2">Rank</th>
+                                <th class="fw-normal pb-2">Player</th>
+                                <th class="fw-normal pb-2">Score</th>
+                                <th class="fw-normal pb-2">Time (s)</th>
                             </tr>
                         </thead>
                         <tbody id="section3ScoreboardBody">
-                            <tr><td colspan="4" class="text-muted">No records yet.</td></tr>
+                            <tr><td colspan="4" style="color:rgba(255,255,255,0.4);padding:1.5rem 0;text-align:center;">No records yet.</td></tr>
                         </tbody>
                     </table>
                 </div>

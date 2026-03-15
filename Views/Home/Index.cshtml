@@ -2,33 +2,297 @@
     ViewData["Title"] = "Cognitive Overload LMS";
 }
 
-<div class="d-flex vh-100 align-items-center justify-content-center bg-light">
-    <div class="card shadow-lg w-75" style="max-width: 700px; border-radius: 1rem;">
-        <div class="card-body p-5">
-            <h1 class="display-5 text-center mb-4" style="font-weight: 600; letter-spacing: 0.05em;">Cognitive Overload Assessment</h1>
+<style>
+    .landing-shell {
+        min-height: calc(100vh - 150px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem 3rem;
+    }
 
-            <div class="mb-4">
-                <h5 class="card-title" style="font-weight: 500;">Begin Assessment</h5>
-                <div class="form-group mb-3">
-                    <label for="userName" class="form-label">Name or ID</label>
-                    <input type="text" class="form-control" id="userName" 
-                           placeholder="Enter your name" required>
+    .landing-card {
+        width: 100%;
+        max-width: 980px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 28px;
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(16px);
+        overflow: hidden;
+    }
+
+    .landing-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+    }
+
+    .landing-hero {
+        padding: 3rem;
+        background:
+            radial-gradient(circle at top left, rgba(72, 198, 239, 0.18), transparent 30%),
+            radial-gradient(circle at bottom left, rgba(108, 99, 255, 0.2), transparent 32%);
+        color: #f4f8ff;
+    }
+
+    .landing-panel {
+        padding: 3rem;
+        background: rgba(7, 12, 23, 0.46);
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        color: #f4f8ff;
+    }
+
+    .landing-badge {
+        display: inline-block;
+        margin-bottom: 1rem;
+        padding: 0.35rem 0.8rem;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #6c63ff, #48c6ef);
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    .landing-title {
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        line-height: 1.05;
+        font-weight: 900;
+        margin-bottom: 1rem;
+        color: #fff;
+    }
+
+    .landing-copy {
+        color: rgba(244, 248, 255, 0.72);
+        font-size: 1rem;
+        line-height: 1.7;
+        margin-bottom: 1.75rem;
+        max-width: 42ch;
+    }
+
+    .landing-highlights {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.9rem;
+        margin-top: 1.5rem;
+    }
+
+    .landing-highlight {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        padding: 1rem;
+    }
+
+    .landing-highlight-title {
+        color: #fff;
+        font-size: 0.88rem;
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+    }
+
+    .landing-highlight-copy {
+        color: rgba(244, 248, 255, 0.62);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .launch-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 0.35rem;
+    }
+
+    .launch-copy {
+        color: rgba(244, 248, 255, 0.62);
+        font-size: 0.92rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .launch-label {
+        display: block;
+        margin-bottom: 0.45rem;
+        color: rgba(244, 248, 255, 0.82);
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }
+
+    .launch-input {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.08);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border-radius: 16px;
+        padding: 0.95rem 1rem;
+        font-size: 1rem;
+        margin-bottom: 1rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .launch-input::placeholder {
+        color: rgba(244, 248, 255, 0.34);
+    }
+
+    .launch-input:focus {
+        outline: none;
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(72, 198, 239, 0.7);
+        box-shadow: 0 0 0 6px rgba(72, 198, 239, 0.12);
+    }
+
+    .launch-btn {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.95rem 1.2rem;
+        font-size: 1rem;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(90deg, #6c63ff, #48c6ef);
+        box-shadow: 0 16px 28px rgba(72, 198, 239, 0.22);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .launch-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 22px 34px rgba(72, 198, 239, 0.26);
+    }
+
+    .sections-list {
+        list-style: none;
+        padding: 0;
+        margin: 1.5rem 0 0;
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .sections-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 0.95rem 1rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(244, 248, 255, 0.9);
+    }
+
+    .section-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .section-dot.memory { background: #e94560; box-shadow: 0 0 16px rgba(233, 69, 96, 0.65); }
+    .section-dot.words { background: #48c6ef; box-shadow: 0 0 16px rgba(72, 198, 239, 0.65); }
+    .section-dot.arrow { background: #f5a623; box-shadow: 0 0 16px rgba(245, 166, 35, 0.65); }
+
+    .section-text strong {
+        display: block;
+        color: #fff;
+        font-size: 0.95rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .section-text span {
+        color: rgba(244, 248, 255, 0.58);
+        font-size: 0.82rem;
+    }
+
+    @@media (max-width: 991.98px) {
+        .landing-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .landing-panel {
+            border-left: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .landing-shell {
+            padding: 1rem 0.75rem 2rem;
+        }
+
+        .landing-hero,
+        .landing-panel {
+            padding: 1.5rem;
+        }
+
+        .landing-highlights {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="landing-shell">
+    <div class="landing-card">
+        <div class="landing-grid">
+            <section class="landing-hero">
+                <span class="landing-badge">Research Game Suite</span>
+                <h1 class="landing-title">Measure cognitive overload through play.</h1>
+                <p class="landing-copy">
+                    Participants complete three fast-paced mini games while the system captures behavioral signals such as mouse speed,
+                    typing patterns, hesitation pauses, and head movement.
+                </p>
+
+                <div class="landing-highlights">
+                    <div class="landing-highlight">
+                        <div class="landing-highlight-title">Memory</div>
+                        <p class="landing-highlight-copy">Repeat visual patterns under time pressure.</p>
+                    </div>
+                    <div class="landing-highlight">
+                        <div class="landing-highlight-title">Language</div>
+                        <p class="landing-highlight-copy">Unscramble category words before time runs out.</p>
+                    </div>
+                    <div class="landing-highlight">
+                        <div class="landing-highlight-title">Precision</div>
+                        <p class="landing-highlight-copy">Shoot arrows without colliding with existing ones.</p>
+                    </div>
                 </div>
-                <button id="startBtn" class="btn btn-primary btn-lg w-100">Start</button>
-            </div>
+            </section>
 
-            <hr />
+            <aside class="landing-panel">
+                <h2 class="launch-title">Begin assessment</h2>
+                <p class="launch-copy">Enter a participant name or ID to start a new tracked session.</p>
 
-            <div>
-                <h6 class="mb-2" style="font-weight: 500;">Sections</h6>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item">Section 1: Memory Pattern Challenge</li>
-                    <li class="list-group-item">Section 2: Word Scramble Race</li>
-                    <li class="list-group-item">Section 3: Twisty Arrow Game</li>
+                <div class="mb-2">
+                    <label for="userName" class="launch-label">Participant name or ID</label>
+                    <input type="text" class="launch-input" id="userName" placeholder="Enter participant name" required>
+                </div>
+
+                <button id="startBtn" class="launch-btn">Start session</button>
+
+                <ul class="sections-list">
+                    <li>
+                        <span class="section-dot memory"></span>
+                        <span class="section-text">
+                            <strong>Section 1: Memory Pattern Challenge</strong>
+                            <span>Observe and reproduce the exact square sequence.</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span class="section-dot words"></span>
+                        <span class="section-text">
+                            <strong>Section 2: Word Scramble Race</strong>
+                            <span>Solve one word per category and build your score.</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span class="section-dot arrow"></span>
+                        <span class="section-text">
+                            <strong>Section 3: Twisty Arrow Game</strong>
+                            <span>Time each shot and avoid hitting arrows already placed.</span>
+                        </span>
+                    </li>
                 </ul>
-                <p class="text-muted small">Each section is timed; complete as quickly and accurately as possible.</p>
-                <p class="text-muted small">All data will be recorded for research purposes.</p>
-            </div>
+            </aside>
         </div>
     </div>
 </div>

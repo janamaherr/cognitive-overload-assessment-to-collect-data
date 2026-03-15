@@ -2,62 +2,195 @@
     ViewData["Title"] = "Memory Pattern Challenge";
 }
 
-<div class="d-flex flex-column align-items-center py-5" style="background:#f8f9fa;min-height:100vh;">
-    <div class="card shadow-lg" style="max-width:800px;width:100%;border-radius:1rem;">
-        <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-                <div class="flex-grow-1">
-                    <h2 class="text-center mb-1" style="font-weight:600;letter-spacing:0.02em;">Memory Pattern Challenge</h2>
-                    <p class="text-center text-muted mb-0" style="font-size:0.9rem;">How to Play: Watch the sequence of highlighted squares carefully; when it ends, repeat the pattern by clicking the squares in order.</p>
-                </div>
-                <button id="openScoreboardBtn" type="button" class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#scoreboardModal">Scoreboard</button>
+<style>
+    body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); min-height: 100vh; }
+
+    .game-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+
+    .game-card {
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 1.5rem;
+        max-width: 700px;
+        width: 100%;
+        color: #fff;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    .section-badge {
+        display: inline-block;
+        background: linear-gradient(90deg, #e94560, #f5a623);
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        margin-bottom: 0.5rem;
+    }
+
+    .game-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #fff 0%, #a0c4ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.25rem;
+    }
+
+    .how-to-play { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+
+    .stats-bar {
+        background: rgba(255,255,255,0.08);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .stat-item { text-align: center; }
+    .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); }
+    .stat-value { font-size: 1.5rem; font-weight: 800; color: #f5a623; line-height: 1; }
+
+    .memory-grid {
+        display: grid;
+        gap: 8px;
+        width: 380px;
+        height: 380px;
+        margin: 0 auto;
+    }
+
+    .memory-cell {
+        background: rgba(255,255,255,0.1);
+        border: 2px solid rgba(255,255,255,0.15);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .memory-cell:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.35); transform: scale(1.04); }
+    .memory-cell.active { background: linear-gradient(135deg, #e94560, #f5a623); border-color: #f5a623; transform: scale(0.95); box-shadow: 0 0 20px rgba(245,166,35,0.6); }
+    .memory-cell.clicked { background: rgba(100,200,255,0.4); }
+    .memory-cell.correct-click { background: linear-gradient(135deg, #11998e, #38ef7d); border-color: #38ef7d; box-shadow: 0 0 15px rgba(56,239,125,0.5); }
+    .memory-cell.wrong-click { background: linear-gradient(135deg, #e94560, #c0392b); border-color: #e94560; box-shadow: 0 0 15px rgba(233,69,96,0.5); }
+
+    .btn-game-primary {
+        background: linear-gradient(90deg, #e94560, #f5a623);
+        border: none; color: #fff; font-weight: 700;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 4px 15px rgba(233,69,96,0.4);
+    }
+    .btn-game-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.6); color: #fff; }
+
+    .btn-game-success {
+        background: linear-gradient(90deg, #11998e, #38ef7d);
+        border: none; color: #fff; font-weight: 700;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 4px 15px rgba(56,239,125,0.35);
+    }
+    .btn-game-success:hover { transform: translateY(-2px); color: #fff; }
+
+    .btn-game-secondary {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.25);
+        color: rgba(255,255,255,0.8); font-weight: 600;
+        padding: 0.6rem 1.8rem; border-radius: 50px;
+        transition: all 0.15s;
+    }
+    .btn-game-secondary:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+    .btn-scoreboard {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: rgba(255,255,255,0.75);
+        font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em;
+        padding: 0.3rem 0.9rem; border-radius: 50px;
+        transition: all 0.15s;
+    }
+    .btn-scoreboard:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+    #feedbackMessage {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        min-width: 280px;
+        text-align: center;
+        border-radius: 50px;
+        font-weight: 700;
+        padding: 0.6rem 1.5rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+</style>
+
+<div class="game-wrapper">
+    <div class="game-card p-4 p-md-5">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+                <span class="section-badge">Section 1</span>
+                <h1 class="game-title">Memory Pattern Challenge</h1>
+                <p class="how-to-play">Watch the sequence of highlighted squares, then repeat it in order.</p>
             </div>
-            
-            <div class="d-flex justify-content-end align-items-center my-3">
-                <div><strong>Time:</strong> <span id="timer">0</span>s</div>
+            <button id="openScoreboardBtn" type="button" class="btn btn-scoreboard ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#scoreboardModal">
+                🏆 Scoreboard
+            </button>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar mb-4">
+            <div class="stat-item">
+                <div class="stat-label">Time</div>
+                <div class="stat-value"><span id="timer">0</span>s</div>
             </div>
+        </div>
 
-            <!-- Feedback Message -->
-            <div id="feedbackMessage" class="alert" style="display: none;"></div>
+        <!-- Feedback -->
+        <div id="feedbackMessage" class="alert" style="display:none;"></div>
 
-            <div class="d-flex justify-content-center mt-3">
-                <div id="gameBoard" class="memory-grid"></div>
-            </div>
+        <!-- Game Board -->
+        <div class="d-flex justify-content-center my-4">
+            <div id="gameBoard" class="memory-grid"></div>
+        </div>
 
-            <div class="text-center mt-4">
-                <button id="startGameBtn" class="btn btn-success btn-lg">Start Game</button>
-                <button id="playAgainBtn" class="btn btn-warning btn-lg" style="display: none;">Play Again</button>
-                <button id="nextGameBtn" class="btn btn-info btn-lg" style="display: none;">Next Game →</button>
-            </div>
-
-
+        <!-- Buttons -->
+        <div class="text-center mt-4 d-flex justify-content-center gap-3 flex-wrap">
+            <button id="startGameBtn" class="btn btn-game-success btn-lg">▶ Start Game</button>
+            <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">↩ Play Again</button>
+            <button id="nextGameBtn" class="btn btn-game-primary btn-lg" style="display:none;">Next Game →</button>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="scoreboardModal" tabindex="-1" aria-labelledby="scoreboardModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="scoreboardModalLabel">Section 1 Winners Scoreboard</h5>
+        <div class="modal-content border-0 shadow-lg" style="background:#1a1a2e;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0 pb-0" style="background:linear-gradient(90deg,#e94560,#f5a623);border-radius:1.25rem 1.25rem 0 0;">
+                <h5 class="modal-title fw-800" id="scoreboardModalLabel">🏆 Section 1 — Winners Board</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body px-4 pt-3">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <p class="text-muted mb-0">Ranked from best to worst by total time.</p>
-                    <button id="clearLeaderboardBtn" class="btn btn-outline-danger btn-sm">Clear Leaderboard</button>
+                    <span style="font-size:0.82rem;color:rgba(255,255,255,0.5);">Ranked by fastest completion time</span>
+                    <button id="clearLeaderboardBtn" class="btn btn-sm" style="background:rgba(233,69,96,0.2);border:1px solid rgba(233,69,96,0.5);color:#e94560;border-radius:50px;">🗑 Clear</button>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Rank</th>
-                                <th>Player Name</th>
-                                <th>Time Taken (s)</th>
+                    <table class="table align-middle mb-0" style="color:#fff;">
+                        <thead style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <tr style="color:rgba(255,255,255,0.5);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;">
+                                <th class="fw-normal pb-2">Rank</th>
+                                <th class="fw-normal pb-2">Player</th>
+                                <th class="fw-normal pb-2">Time (s)</th>
                             </tr>
                         </thead>
                         <tbody id="timeScoreboardBody">
-                            <tr><td colspan="3" class="text-muted">No winners yet.</td></tr>
+                            <tr><td colspan="3" style="color:rgba(255,255,255,0.4);padding:1.5rem 0;text-align:center;">No winners yet.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -513,53 +646,3 @@
     </script>
 }
 
-<style>
-    .memory-grid {
-        display: grid;
-        gap: 5px;
-        width: 400px;
-        height: 400px;
-        margin: 0 auto;
-    }
-    
-    .memory-cell {
-        background-color: #f0f0f0;
-        border: 2px solid #ccc;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    
-    .memory-cell.active {
-        background-color: #ff6b6b;
-        transform: scale(0.95);
-    }
-    
-    .memory-cell.clicked {
-        background-color: #4ecdc4;
-    }
-    
-    .memory-cell.correct-click {
-        background-color: #4CAF50;
-        transform: scale(0.95);
-    }
-    
-    .memory-cell.wrong-click {
-        background-color: #f44336;
-        transform: scale(0.95);
-    }
-    
-    .memory-cell:hover {
-        background-color: #e0e0e0;
-    }
-    
-    #feedbackMessage {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1000;
-        min-width: 300px;
-        text-align: center;
-    }
-</style>

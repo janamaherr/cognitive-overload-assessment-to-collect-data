@@ -118,7 +118,6 @@ C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\scopedcss\Views\Shared\_Layout.cshtml.rz.scp.css
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\scopedcss\bundle\CognitiveOverloadLMS.styles.css
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\scopedcss\projectbundle\CognitiveOverloadLMS.bundle.scp.css
-C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\xv4ekbtirv-b9sayid5wm.gz
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\c7pc8iiqjj-61n19gt1b8.gz
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\oj70h9lai9-xtxxf3hu2r.gz
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\x79cf3dn0b-t1cqhe9u97.gz
@@ -204,3 +203,4 @@ C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\rjdrfk9bvb-b33zkwkt0y.gz
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\kpn8f59707-s6jo0a18fc.gz
 C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\6aa3ae0wct-8po0bu8pxk.gz
+C:\Users\dell\Documents\GitHub\cognitive-overload-lms-to-collect-data\obj\Debug\net9.0\compressed\xv4ekbtirv-drpcbm4ywl.gz

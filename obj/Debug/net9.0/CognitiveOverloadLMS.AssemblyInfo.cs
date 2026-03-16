@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CognitiveOverloadLMS")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e8f49e3c25d3aa6c5948be615c02ca38a1c8ed88")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+79b5a4fa836fd40f96c4b0423ff0937650e32b1e")]
 [assembly: System.Reflection.AssemblyProductAttribute("CognitiveOverloadLMS")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CognitiveOverloadLMS")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

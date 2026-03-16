@@ -8,14 +8,13 @@
     .game-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
 
     .game-card {
-        background: rgba(255,255,255,0.05);
-        backdrop-filter: blur(12px);
+        background: rgba(18, 27, 45, 0.92);
         border: 1px solid rgba(255,255,255,0.12);
         border-radius: 1.5rem;
         max-width: 620px;
         width: 100%;
         color: #fff;
-        box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.35);
     }
 
     .section-badge {
@@ -58,7 +57,7 @@
     #gameCanvas {
         border-radius: 1rem;
         border: 2px solid rgba(255,255,255,0.15);
-        box-shadow: 0 0 40px rgba(245,166,35,0.2);
+        box-shadow: 0 0 14px rgba(245,166,35,0.12);
         background: #0d1b2a;
         max-width: 100%;
     }
@@ -492,9 +491,16 @@
                 arrow.draw(ctx, centerX, centerY, circleRadius, rotationAngle);
             });
             
-            // Draw flying arrow
+            // Draw and update flying arrow in the main RAF loop to avoid a second animation loop.
             if (flyingArrow && flyingArrow.active) {
+                const result = flyingArrow.update();
                 flyingArrow.draw(ctx);
+
+                if (result === true) {
+                    handleArrowHit();
+                } else if (result === false) {
+                    handleArrowMiss();
+                }
             }
             
             // Update rotation
@@ -515,66 +521,53 @@
             
             gameState.arrowsShot++;
             flyingArrow = new FlyingArrow();
-            checkArrowHit();
         }
 
-        // Check arrow collision
-        function checkArrowHit() {
-            if (!flyingArrow || !flyingArrow.active) return;
-            
-            const result = flyingArrow.update();
-            
-            if (result === true) {
-                // absolute angle where arrow hit the circle
-                const hitAngle = flyingArrow.angle;
-                // convert to circle-relative angle by removing current rotation
-                const relativeAngle = hitAngle - rotationAngle;
-                 const hitAbsoluteAngle = flyingArrow.angle;
-                let collision = false;
-                for (let arrow of arrows) {
-                    if (arrow.collidesWith(relativeAngle, rotationAngle)) {
-                        collision = true;
-                        break;
-                    }
+        function handleArrowHit() {
+            const hitAngle = flyingArrow.angle;
+            const relativeAngle = hitAngle - rotationAngle;
+
+            let collision = false;
+            for (let arrow of arrows) {
+                if (arrow.collidesWith(relativeAngle, rotationAngle)) {
+                    collision = true;
+                    break;
                 }
-                
-                gameState.arrowThrows.push({
-                    timestamp: new Date().toISOString(),
-                    angle: relativeAngle,
-                    hitAnotherArrow: collision,
-                    rotationSpeed: rotationSpeed
-                });
-                
-                console.log('Arrow hit (abs)', hitAngle, 'rel', relativeAngle, 'collision?', collision);
-                
-                if (collision) {
-                    gameState.failedAttempts++;
-                    gameState.gameLost = true;
-                    gameState.gameCompleted = true;
-                    showFeedback('💥 GAME OVER! Hit another arrow!', false);
-                    endGame(false);
-                } else {
-                    gameState.arrowsStuck++;
-                    arrows.push(new StuckArrow(relativeAngle, rotationAngle));
-                    console.log('Stuck arrows array now', arrows.map(a=>a.angle));
-                    document.getElementById('arrowCount').textContent = gameState.arrowsStuck;
-                    showFeedback('✓ Arrow #' + gameState.arrowsStuck + ' stuck!', true);
-                    flyingArrow = null;
-                    
-                }
-            } else if (result === false) {
-                gameState.failedAttempts++;
-                gameState.arrowThrows.push({
-                    timestamp: new Date().toISOString(),
-                    angle: null,
-                    hitAnotherArrow: false,
-                    rotationSpeed: rotationSpeed
-                });
-                showFeedback('Missed!', false);
-                flyingArrow = null;
-            } else {
-                requestAnimationFrame(checkArrowHit);
             }
+
+            gameState.arrowThrows.push({
+                timestamp: new Date().toISOString(),
+                angle: relativeAngle,
+                hitAnotherArrow: collision,
+                rotationSpeed: rotationSpeed
+            });
+
+            if (collision) {
+                gameState.failedAttempts++;
+                gameState.gameLost = true;
+                gameState.gameCompleted = true;
+                showFeedback('💥 GAME OVER! Hit another arrow!', false);
+                flyingArrow = null;
+                endGame(false);
+            } else {
+                gameState.arrowsStuck++;
+                arrows.push(new StuckArrow(relativeAngle, rotationAngle));
+                document.getElementById('arrowCount').textContent = gameState.arrowsStuck;
+                showFeedback('✓ Arrow #' + gameState.arrowsStuck + ' stuck!', true);
+                flyingArrow = null;
+            }
+        }
+
+        function handleArrowMiss() {
+            gameState.failedAttempts++;
+            gameState.arrowThrows.push({
+                timestamp: new Date().toISOString(),
+                angle: null,
+                hitAnotherArrow: false,
+                rotationSpeed: rotationSpeed
+            });
+            showFeedback('Missed!', false);
+            flyingArrow = null;
         }
 
         // Start game
@@ -611,18 +604,14 @@
             if (animationFrame) cancelAnimationFrame(animationFrame);
             draw();
             
-            console.log('Game started');
         }
 
         // End game
         function endGame(completed) {
-            console.log('endGame called with completed =', completed);
             gameState.endTime = new Date().toISOString();
-            console.log('endTime set to:', gameState.endTime);
             document.getElementById('shootBtn').disabled = true;
             document.getElementById('playAgainBtn').style.display = 'inline-block';
-            
-            console.log('Calling saveGameData...');
+
             saveGameData(completed);
         }
 

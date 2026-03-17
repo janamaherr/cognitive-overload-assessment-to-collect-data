@@ -33,6 +33,9 @@ namespace CognitiveOverloadLMS.Models
         
         [BsonElement("heartRate")]
         public double HeartRate { get; set; }
+
+        [BsonElement("heartRatebefore")]
+        public int InitialHeartRate { get; set; }
     }
     
     public class MouseMovement

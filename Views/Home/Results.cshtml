@@ -2,13 +2,68 @@
     ViewData["Title"] = "Session Results";
 }
 
-<div class="container">
-    <h2>Your Session Results</h2>
+<style>
+    body {
+        background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 45%, #0b1120 100%);
+        min-height: 100vh;
+    }
+
+    .results-shell {
+        color: #e5e7eb;
+        max-width: 1000px;
+    }
+
+    .results-title {
+        font-weight: 800;
+        color: #f8fafc;
+        letter-spacing: 0.02em;
+    }
+
+    .results-card {
+        background: rgba(15, 23, 42, 0.88);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 1rem;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+    }
+
+    .results-card .card-header {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        font-weight: 700;
+    }
+
+    .results-card .card-body {
+        color: #d1d5db;
+    }
+
+    .results-card .table {
+        color: #e5e7eb;
+        margin-bottom: 0;
+    }
+
+    .results-card .table thead th {
+        border-color: rgba(148, 163, 184, 0.3);
+        color: #93c5fd;
+    }
+
+    .results-card .table tbody td {
+        border-color: rgba(148, 163, 184, 0.2);
+        background: transparent;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="container py-4 results-shell">
+    <h2 class="results-title">Your Session Results</h2>
     
     <div class="row mt-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
+            <div class="card results-card">
+                <div class="card-header" style="background:linear-gradient(90deg,#2563eb,#06b6d4);color:#fff;">
                     <h5>Session Information</h5>
                 </div>
                 <div class="card-body">
@@ -23,8 +78,8 @@
     
     <div class="row mt-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-success text-white">
+            <div class="card results-card">
+                <div class="card-header" style="background:linear-gradient(90deg,#16a34a,#22c55e);color:#fff;">
                     <h5>Game Results</h5>
                 </div>
                 <div class="card-body">
@@ -37,9 +92,10 @@
     </div>
     
     <div class="row mt-4">
-        <div class="col-md-12">
+        <div class="col-md-12 results-actions">
             <button id="refreshBtn" class="btn btn-primary">Refresh Data</button>
-            <button id="backToGamesBtn" class="btn btn-secondary">Back to Games</button>
+            <button id="deleteSessionBtn" class="btn btn-danger">Delete Session</button>
+            <button id="backToGamesBtn" class="btn btn-outline-light">Back to Games</button>
         </div>
     </div>
 </div>
@@ -67,7 +123,7 @@
                     const gamesList = document.getElementById('gamesList');
                     
                     if (data.games && data.games.length > 0) {
-                        let html = '<div class="table-responsive"><table class="table table-striped">';
+                        let html = '<div class="table-responsive"><table class="table">';
                         html += '<thead><tr><th>Game</th><th>Score</th><th>Time (s)</th><th>Completed</th><th>Date</th></tr></thead><tbody>';
                         
                         data.games.forEach(game => {
@@ -96,6 +152,30 @@
         loadSessionData();
         
         document.getElementById('refreshBtn').addEventListener('click', loadSessionData);
+
+        document.getElementById('deleteSessionBtn').addEventListener('click', async function() {
+            if (!confirm('Delete this session and all related game results? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/GameData/session/${sessionId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    alert(`Failed to delete session: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                sessionStorage.removeItem('sessionId');
+                alert('Session and related game data deleted successfully.');
+                window.location.href = '/';
+            } catch (error) {
+                alert(`Error deleting session: ${error.message}`);
+            }
+        });
         
         document.getElementById('backToGamesBtn').addEventListener('click', function() {
             window.location.href = '/Questions/Section1';

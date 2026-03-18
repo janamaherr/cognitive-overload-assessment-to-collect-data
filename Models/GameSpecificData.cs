@@ -41,6 +41,19 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("accuracy")]
         [BsonIgnoreIfNull]
         public double? Accuracy { get; set; }
+
+        // Sentence Memory Data (Section 2)
+        [BsonElement("sentencesCompleted")]
+        [BsonIgnoreIfNull]
+        public List<SentenceResult>? SentencesCompleted { get; set; }
+
+        [BsonElement("totalSentences")]
+        [BsonIgnoreIfNull]
+        public int? TotalSentences { get; set; }
+
+        [BsonElement("typingSpeedByWordCount")]
+        [BsonIgnoreIfNull]
+        public List<TypingSpeedByWordCount>? TypingSpeedByWordCount { get; set; }
         
         // Arrow Challenge Data - Simplified
         [BsonElement("score")]
@@ -96,5 +109,73 @@ namespace CognitiveOverloadLMS.Models
         
         [BsonElement("rotationSpeed")]
         public double RotationSpeed { get; set; }
+    }
+
+    public class SentenceResult
+    {
+        [BsonElement("wordCount")]
+        public int WordCount { get; set; }
+
+        [BsonElement("original")]
+        public string Original { get; set; } = string.Empty;
+
+        [BsonElement("userAnswer")]
+        public string UserAnswer { get; set; } = string.Empty;
+
+        [BsonElement("isCorrect")]
+        public bool IsCorrect { get; set; }
+
+        [BsonElement("startTime")]
+        public string StartTime { get; set; } = string.Empty;
+
+        [BsonElement("shownTime")]
+        public string ShownTime { get; set; } = string.Empty;
+
+        [BsonElement("typingStartTime")]
+        [BsonIgnoreIfNull]
+        public string? TypingStartTime { get; set; }
+
+        [BsonElement("firstKeyTime")]
+        [BsonIgnoreIfNull]
+        public string? FirstKeyTime { get; set; }
+
+        [BsonElement("endTime")]
+        public string EndTime { get; set; } = string.Empty;
+
+        [BsonElement("timeToFirstKeyMs")]
+        public int TimeToFirstKeyMs { get; set; }
+
+        [BsonElement("totalTypingDurationMs")]
+        public int TotalTypingDurationMs { get; set; }
+
+        [BsonElement("activeTypingDurationMs")]
+        public int ActiveTypingDurationMs { get; set; }
+
+        [BsonElement("typingSpeedCharsPerSecond")]
+        public double TypingSpeedCharsPerSecond { get; set; }
+
+        [BsonElement("typingSpeedWordsPerMinute")]
+        public double TypingSpeedWordsPerMinute { get; set; }
+    }
+
+    public class TypingSpeedByWordCount
+    {
+        [BsonElement("wordCount")]
+        public int WordCount { get; set; }
+
+        [BsonElement("typingSpeedCharsPerSecond")]
+        public double TypingSpeedCharsPerSecond { get; set; }
+
+        [BsonElement("typingSpeedWordsPerMinute")]
+        public double TypingSpeedWordsPerMinute { get; set; }
+
+        [BsonElement("timeToFirstKeyMs")]
+        public int TimeToFirstKeyMs { get; set; }
+
+        [BsonElement("totalTypingDurationMs")]
+        public int TotalTypingDurationMs { get; set; }
+
+        [BsonElement("activeTypingDurationMs")]
+        public int ActiveTypingDurationMs { get; set; }
     }
 }

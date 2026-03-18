@@ -4,6 +4,7 @@ class HeadTracker {
 
     constructor() {
         this.headPositions = [];
+        this.headSamples = [];
         this.isTracking = false;
         this.stream = null;
         this.video = null;
@@ -25,6 +26,7 @@ class HeadTracker {
             }
 
             this.headPositions = [];
+            this.headSamples = [];
             this.lastPosition = null;
             this.lookAwayCount = 0;
             this.tiltCount = 0;
@@ -81,6 +83,7 @@ class HeadTracker {
             const predictions = await this.model.estimateFaces(this.video, false);
 
             if (predictions.length > 0) {
+                const nowIso = new Date().toISOString();
                 const face = predictions[0];
                 const topLeft = face.topLeft;
                 const bottomRight = face.bottomRight;
@@ -111,7 +114,8 @@ class HeadTracker {
                 }
 
                 // Detect tilt (head tilted more than 15 degrees)
-                if (Math.abs(tiltAngle) > 15) this.tiltCount++;
+                const isHeadTilt = Math.abs(tiltAngle) > 15;
+                if (isHeadTilt) this.tiltCount++;
 
                 if (movementDelta > 0) {
                     this.movementSum += movementDelta;
@@ -119,9 +123,42 @@ class HeadTracker {
                 }
                 this.lastPosition = { x, y };
 
+                this.headPositions.push({
+                    timestamp: nowIso,
+                    x: parseFloat(x.toFixed(2)),
+                    y: parseFloat(y.toFixed(2)),
+                    z: parseFloat(z.toFixed(2)),
+                    movementDelta: movementDelta
+                });
+
+                this.headSamples.push({
+                    timestamp: nowIso,
+                    x: parseFloat(x.toFixed(2)),
+                    y: parseFloat(y.toFixed(2)),
+                    z: parseFloat(z.toFixed(2)),
+                    movementDelta: movementDelta,
+                    isLookAway: false,
+                    isHeadTilt: isHeadTilt
+                });
+
+                if (this.headPositions.length > 500) this.headPositions.shift();
+                if (this.headSamples.length > 700) this.headSamples.shift();
+
             } else {
                 // No face detected = looking away
                 this.lookAwayCount++;
+
+                this.headSamples.push({
+                    timestamp: new Date().toISOString(),
+                    x: 0,
+                    y: 0,
+                    z: 0,
+                    movementDelta: 0,
+                    isLookAway: true,
+                    isHeadTilt: false
+                });
+
+                if (this.headSamples.length > 700) this.headSamples.shift();
             }
         } catch (e) {
             // Silently continue
@@ -152,7 +189,8 @@ class HeadTracker {
             : 0;
 
         return {
-            headPositions: [],
+            headPositions: this.headPositions,
+            headSamples: this.headSamples,
             averageHeadMovement: avgMovement,
             lookAwayCount: this.lookAwayCount,
             tiltCount: this.tiltCount

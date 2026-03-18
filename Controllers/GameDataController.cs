@@ -187,6 +187,63 @@ namespace CognitiveOverloadLMS.Controllers
             }
         }
 
+        [HttpDelete("session/{sessionId}")]
+        public async Task<IActionResult> DeleteSession(string sessionId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(sessionId))
+                {
+                    return BadRequest(new { success = false, error = "Session ID is required" });
+                }
+
+                // Verify session exists before deleting related records.
+                var session = await _userSessions.Find(s => s.Id == sessionId).FirstOrDefaultAsync();
+                if (session == null)
+                {
+                    return NotFound(new { success = false, error = "Session not found" });
+                }
+
+                var sessionFilter = Builders<GameResult>.Filter.Eq(r => r.SessionId, sessionId);
+
+                var gameResultsDeleteTask = _gameResults.DeleteManyAsync(sessionFilter);
+                var section1DeleteTask = _section1Results.DeleteManyAsync(sessionFilter);
+                var section2DeleteTask = _section2Results.DeleteManyAsync(sessionFilter);
+                var section3DeleteTask = _section3Results.DeleteManyAsync(sessionFilter);
+
+                await Task.WhenAll(gameResultsDeleteTask, section1DeleteTask, section2DeleteTask, section3DeleteTask);
+
+                var sessionDeleteResult = await _userSessions.DeleteOneAsync(s => s.Id == sessionId);
+
+                _logger.LogInformation(
+                    "Deleted session {SessionId}. UserSessions={SessionDeleted}, GameResults={GameResultsDeleted}, Section1={Section1Deleted}, Section2={Section2Deleted}, Section3={Section3Deleted}",
+                    sessionId,
+                    sessionDeleteResult.DeletedCount,
+                    gameResultsDeleteTask.Result.DeletedCount,
+                    section1DeleteTask.Result.DeletedCount,
+                    section2DeleteTask.Result.DeletedCount,
+                    section3DeleteTask.Result.DeletedCount);
+
+                return Ok(new
+                {
+                    success = true,
+                    deleted = new
+                    {
+                        userSessions = sessionDeleteResult.DeletedCount,
+                        gameResults = gameResultsDeleteTask.Result.DeletedCount,
+                        gameResultsSection1 = section1DeleteTask.Result.DeletedCount,
+                        gameResultsSection2 = section2DeleteTask.Result.DeletedCount,
+                        gameResultsSection3 = section3DeleteTask.Result.DeletedCount
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting session {SessionId}", sessionId);
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
         [HttpGet("leaderboard/section1")]
         public async Task<IActionResult> GetSection1Leaderboard()
         {
@@ -215,12 +272,19 @@ namespace CognitiveOverloadLMS.Controllers
 
                 var sessionNameMap = sessions.ToDictionary(s => s.Id!, s => s.UserName);
 
-                var leaderboard = winners.Select((w, index) => new
-                {
-                    rank = index + 1,
-                    playerName = sessionNameMap.TryGetValue(w.SessionId, out var name) ? name : "Unknown",
-                    totalTimeSeconds = w.TotalTimeSeconds
-                });
+                var leaderboard = winners
+                    .Where(w => sessionNameMap.ContainsKey(w.SessionId))
+                    .Select(w => new
+                    {
+                        playerName = sessionNameMap[w.SessionId],
+                        totalTimeSeconds = w.TotalTimeSeconds
+                    })
+                    .Select((w, index) => new
+                    {
+                        rank = index + 1,
+                        playerName = w.playerName,
+                        totalTimeSeconds = w.totalTimeSeconds
+                    });
 
                 return Ok(new { success = true, leaderboard });
             }
@@ -268,13 +332,21 @@ namespace CognitiveOverloadLMS.Controllers
                     .ThenByDescending(r => r.CorrectCount)
                     .ToList();
 
-                var leaderboard = ranked.Select((r, index) => new
-                {
-                    rank = index + 1,
-                    playerName = sessionNameMap.TryGetValue(r.SessionId, out var name) ? name : "Unknown",
-                    score = r.Score,
-                    correctCount = r.CorrectCount
-                });
+                var leaderboard = ranked
+                    .Where(r => sessionNameMap.ContainsKey(r.SessionId))
+                    .Select(r => new
+                    {
+                        playerName = sessionNameMap[r.SessionId],
+                        score = r.Score,
+                        correctCount = r.CorrectCount
+                    })
+                    .Select((r, index) => new
+                    {
+                        rank = index + 1,
+                        playerName = r.playerName,
+                        score = r.score,
+                        correctCount = r.correctCount
+                    });
 
                 return Ok(new { success = true, leaderboard });
             }
@@ -314,13 +386,21 @@ namespace CognitiveOverloadLMS.Controllers
 
                 var sessionNameMap = sessions.ToDictionary(s => s.Id!, s => s.UserName);
 
-                var leaderboard = results.Select((r, index) => new
-                {
-                    rank = index + 1,
-                    playerName = sessionNameMap.TryGetValue(r.SessionId, out var name) ? name : "Unknown",
-                    score = r.Score,
-                    totalTimeSeconds = r.TotalTimeSeconds
-                });
+                var leaderboard = results
+                    .Where(r => sessionNameMap.ContainsKey(r.SessionId))
+                    .Select(r => new
+                    {
+                        playerName = sessionNameMap[r.SessionId],
+                        score = r.Score,
+                        totalTimeSeconds = r.TotalTimeSeconds
+                    })
+                    .Select((r, index) => new
+                    {
+                        rank = index + 1,
+                        playerName = r.playerName,
+                        score = r.score,
+                        totalTimeSeconds = r.totalTimeSeconds
+                    });
 
                 return Ok(new { success = true, leaderboard });
             }
@@ -378,12 +458,15 @@ namespace CognitiveOverloadLMS.Controllers
                     CorrectClicks = source.CorrectClicks
                 },
 
-                // Section 2: Word Scramble Race
+                // Section 2: Sentence Memory Test
                 2 => new GameSpecificData
                 {
                     WordsCompleted = source.WordsCompleted,
                     CorrectCount = source.CorrectCount,
                     TotalWords = source.TotalWords,
+                    SentencesCompleted = source.SentencesCompleted,
+                    TotalSentences = source.TotalSentences,
+                    TypingSpeedByWordCount = source.TypingSpeedByWordCount,
                     AverageWPM = source.AverageWPM,
                     Accuracy = source.Accuracy
                 },

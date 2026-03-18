@@ -93,6 +93,30 @@
         text-transform: uppercase;
     }
 
+    .timers-strip {
+        display: flex;
+        justify-content: center;
+        gap: 0.8rem;
+        flex-wrap: wrap;
+        margin: 0 0 1rem;
+    }
+
+    .timer-chip {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 999px;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.85);
+        min-width: 200px;
+        text-align: center;
+    }
+
+    .timer-chip strong {
+        color: #f5a623;
+        font-weight: 800;
+    }
+
     .game-input {
         background: rgba(255,255,255,0.08);
         border: 2px solid rgba(255,255,255,0.2);
@@ -216,6 +240,11 @@
         <!-- Difficulty Indicator -->
         <div class="text-center mb-3">
             <span class="difficulty-indicator" id="difficultyLabel">Easy — 5 words</span>
+        </div>
+
+        <div class="timers-strip">
+            <div class="timer-chip">Disappears in: <strong id="revealCountdown">--</strong></div>
+            <div class="timer-chip">Typing time: <strong id="typingStopwatch">0.00s</strong></div>
         </div>
 
         <!-- Feedback -->
@@ -376,7 +405,8 @@
             sentencesData: [],
             sentenceStartTime: null,
             sentenceShownTime: null,
-            sentenceRevealTime: 3, // 3 seconds visible
+            sentenceRevealBaseTime: 3,
+            sentenceRevealTime: 3,
             gameStarted: false,
             gameCompleted: false,
             currentSentence: null,
@@ -390,9 +420,12 @@
         const headTracker = new HeadTracker();
         const section2Leaderboard = [];
 
-        // Timer variables for sentence reveal
+        // Timer variables for sentence reveal and typing stopwatch
         let revealTimer;
-        let visibilityTimer;
+        let revealCountdownTimer;
+        let typingStopwatchTimer;
+        let typingStartMs = null;
+        let firstKeyTimeMs = null;
 
         // Verify session
         if (!gameState.sessionId) {
@@ -445,6 +478,72 @@
             document.getElementById('nextBtn').style.display = 'none';
             document.getElementById('sentenceDisplay').textContent = 'Click "Ready" to see the next sentence';
             document.getElementById('sentenceDisplay').style.color = 'rgba(255,255,255,0.5)';
+            document.getElementById('revealCountdown').textContent = '--';
+            resetTypingStopwatch();
+        }
+
+        function getRevealDurationForWordCount(wordCount) {
+            // 5 words => 3s, each extra word adds 1s up to 9 words.
+            const extraSeconds = Math.max(0, wordCount - 5);
+            return gameState.sentenceRevealBaseTime + extraSeconds;
+        }
+
+        function clearRevealCountdownTimer() {
+            if (revealCountdownTimer) {
+                clearInterval(revealCountdownTimer);
+                revealCountdownTimer = null;
+            }
+        }
+
+        function startRevealCountdown(durationSeconds) {
+            clearRevealCountdownTimer();
+            const countdownEl = document.getElementById('revealCountdown');
+            const endsAt = Date.now() + (durationSeconds * 1000);
+            let lastShown = -1;
+
+            const tick = () => {
+                const remainingMs = Math.max(0, endsAt - Date.now());
+                const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+                if (remainingSeconds !== lastShown) {
+                    countdownEl.textContent = remainingSeconds > 0 ? `${remainingSeconds}` : '0';
+                    lastShown = remainingSeconds;
+                }
+
+                if (remainingMs <= 0) {
+                    clearRevealCountdownTimer();
+                }
+            };
+
+            tick();
+            revealCountdownTimer = setInterval(tick, 50);
+        }
+
+        function clearTypingStopwatchTimer() {
+            if (typingStopwatchTimer) {
+                clearInterval(typingStopwatchTimer);
+                typingStopwatchTimer = null;
+            }
+        }
+
+        function resetTypingStopwatch() {
+            clearTypingStopwatchTimer();
+            typingStartMs = null;
+            firstKeyTimeMs = null;
+            document.getElementById('typingStopwatch').textContent = '0.00s';
+        }
+
+        function startTypingStopwatch() {
+            resetTypingStopwatch();
+            typingStartMs = Date.now();
+
+            const update = () => {
+                const elapsedMs = Date.now() - typingStartMs;
+                document.getElementById('typingStopwatch').textContent = `${(elapsedMs / 1000).toFixed(2)}s`;
+            };
+
+            update();
+            typingStopwatchTimer = setInterval(update, 50);
         }
 
         function startSentence() {
@@ -457,12 +556,15 @@
             document.getElementById('difficultyLabel').textContent = `${diffLabel} — ${gameState.currentSentence.wordCount} words`;
             document.getElementById('wordCount').textContent = gameState.currentSentence.wordCount;
             document.getElementById('sentenceCount').textContent = (gameState.currentSentenceIndex + 1);
+            gameState.sentenceRevealTime = getRevealDurationForWordCount(gameState.currentSentence.wordCount);
             
-            // Show sentence for 3 seconds
+            // Show sentence, countdown ticks (3..2..1 style), then hide.
             document.getElementById('sentenceDisplay').textContent = gameState.currentSentence.original;
             document.getElementById('sentenceDisplay').style.color = '#fff';
             gameState.sentenceCurrentlyVisible = true;
             gameState.sentenceShownTime = new Date().toISOString();
+            startRevealCountdown(gameState.sentenceRevealTime);
+            resetTypingStopwatch();
             
             document.getElementById('readyBtn').style.display = 'none';
             document.getElementById('submitBtn').disabled = true;
@@ -471,7 +573,7 @@
             document.getElementById('answerFeedback').innerHTML = '';
             document.getElementById('correctSentenceDisplay').style.display = 'none';
             
-            // After 3 seconds, hide sentence and enable input
+            // After reveal duration, hide sentence and enable input.
             revealTimer = setTimeout(() => {
                 hideSentence();
             }, gameState.sentenceRevealTime * 1000);
@@ -479,6 +581,8 @@
 
         function hideSentence() {
             gameState.sentenceCurrentlyVisible = false;
+            clearRevealCountdownTimer();
+            document.getElementById('revealCountdown').textContent = '0';
             document.getElementById('sentenceDisplay').textContent = '💭 Type from memory...';
             document.getElementById('sentenceDisplay').classList.add('sentence-hidden');
             
@@ -487,6 +591,40 @@
             document.getElementById('userInput').focus();
             document.getElementById('submitBtn').disabled = false;
             document.getElementById('submitBtn').style.display = 'inline-block';
+            startTypingStopwatch();
+        }
+
+        function getTypingMetricsForCurrentSentence(userAnswer) {
+            const submitTimeMs = Date.now();
+            const typingStart = typingStartMs || submitTimeMs;
+            const totalTypingDurationMs = Math.max(0, submitTimeMs - typingStart);
+            const firstKeyDelayMs = firstKeyTimeMs
+                ? Math.max(0, firstKeyTimeMs - typingStart)
+                : totalTypingDurationMs;
+            const activeTypingDurationMs = firstKeyTimeMs
+                ? Math.max(0, submitTimeMs - firstKeyTimeMs)
+                : 0;
+
+            const charsCount = userAnswer.length;
+            const wordCount = userAnswer.trim().length ? userAnswer.trim().split(/\s+/).length : 0;
+
+            const typingSpeedCharsPerSecond = activeTypingDurationMs > 0
+                ? parseFloat((charsCount / (activeTypingDurationMs / 1000)).toFixed(2))
+                : 0;
+
+            const typingSpeedWordsPerMinute = activeTypingDurationMs > 0
+                ? parseFloat((wordCount / (activeTypingDurationMs / 60000)).toFixed(2))
+                : 0;
+
+            return {
+                typingStartTime: new Date(typingStart).toISOString(),
+                firstKeyTime: firstKeyTimeMs ? new Date(firstKeyTimeMs).toISOString() : null,
+                firstKeyDelayMs,
+                totalTypingDurationMs,
+                activeTypingDurationMs,
+                typingSpeedCharsPerSecond,
+                typingSpeedWordsPerMinute
+            };
         }
 
         function normalizeSentence(text) {
@@ -497,8 +635,11 @@
         function checkAnswer() {
             const userInput = document.getElementById('userInput').value.trim();
             const isCorrect = (normalizeSentence(userInput) === normalizeSentence(gameState.currentSentence.original));
+            const typingMetrics = getTypingMetricsForCurrentSentence(userInput);
             
             clearTimeout(revealTimer);
+            clearRevealCountdownTimer();
+            clearTypingStopwatchTimer();
             document.getElementById('userInput').disabled = true;
             document.getElementById('submitBtn').disabled = true;
             
@@ -517,7 +658,7 @@
             }
             
             // Record result
-            recordSentenceResult(isCorrect, userInput);
+            recordSentenceResult(isCorrect, userInput, typingMetrics);
             
             // Show appropriate button
             if (gameState.currentSentenceIndex >= gameState.totalSentences - 1) {
@@ -527,7 +668,7 @@
             }
         }
 
-        function recordSentenceResult(isCorrect, userAnswer) {
+        function recordSentenceResult(isCorrect, userAnswer, typingMetrics) {
             gameState.sentencesCompleted.push({
                 wordCount: gameState.currentSentence.wordCount,
                 original: gameState.currentSentence.original,
@@ -535,6 +676,13 @@
                 isCorrect: isCorrect,
                 startTime: gameState.sentenceStartTime,
                 shownTime: gameState.sentenceShownTime,
+                typingStartTime: typingMetrics.typingStartTime,
+                firstKeyTime: typingMetrics.firstKeyTime,
+                timeToFirstKeyMs: typingMetrics.firstKeyDelayMs,
+                totalTypingDurationMs: typingMetrics.totalTypingDurationMs,
+                activeTypingDurationMs: typingMetrics.activeTypingDurationMs,
+                typingSpeedCharsPerSecond: typingMetrics.typingSpeedCharsPerSecond,
+                typingSpeedWordsPerMinute: typingMetrics.typingSpeedWordsPerMinute,
                 endTime: new Date().toISOString()
             });
         }
@@ -599,6 +747,9 @@
         }
 
         async function saveGameData(completed) {
+            clearRevealCountdownTimer();
+            clearTypingStopwatchTimer();
+
             // Stop tracking
             mouseTracker.stopTracking();
             headTracker.stopTracking();
@@ -621,6 +772,98 @@
             
             // Calculate accuracy
             const correctCount = gameState.sentencesCompleted.filter(s => s.isCorrect).length;
+            const totalTypingDurationMs = gameState.sentencesCompleted
+                .reduce((sum, sentence) => sum + (sentence.totalTypingDurationMs || 0), 0);
+
+            const toMs = (value) => {
+                const ms = Date.parse(value || '');
+                return Number.isNaN(ms) ? null : ms;
+            };
+
+            const isWithinRange = (timestamp, startTime, endTime) => {
+                const point = toMs(timestamp);
+                const start = toMs(startTime);
+                const end = toMs(endTime);
+
+                if (point === null || start === null || end === null) {
+                    return false;
+                }
+
+                return point >= start && point <= end;
+            };
+
+            const words = gameState.sentencesCompleted.map((sentence, index) => {
+                const typingStart = sentence.typingStartTime;
+                const submitTime = sentence.endTime;
+
+                const wordTypingEvents = (behaviorData.typingEvents || []).filter(event =>
+                    isWithinRange(event.timestamp, typingStart, submitTime)
+                );
+
+                const wordHesitationPauses = (behaviorData.hesitationPauses || []).filter(pause => {
+                    const pauseStart = toMs(pause.startTime);
+                    const pauseEnd = toMs(pause.endTime);
+                    const typingStartMs = toMs(typingStart);
+                    const submitTimeMs = toMs(submitTime);
+
+                    if (pauseStart === null || pauseEnd === null || typingStartMs === null || submitTimeMs === null) {
+                        return false;
+                    }
+
+                    return pauseEnd >= typingStartMs && pauseStart <= submitTimeMs;
+                });
+
+                const wordMouseMovements = (mouseData.movements || []).filter(movement =>
+                    isWithinRange(movement.timestamp, typingStart, submitTime)
+                );
+
+                const wordHeadSamples = (headData.headSamples || []).filter(sample =>
+                    isWithinRange(sample.timestamp, typingStart, submitTime)
+                );
+
+                const wordHeadPositions = (headData.headPositions || []).filter(position =>
+                    isWithinRange(position.timestamp, typingStart, submitTime)
+                );
+
+                const lookAwayCount = wordHeadSamples.filter(sample => sample.isLookAway).length;
+                const headTiltCount = wordHeadSamples.filter(sample => sample.isHeadTilt).length;
+
+                const headMovementSamples = wordHeadPositions.filter(position => (position.movementDelta || 0) > 0);
+                const averageHeadMovement = headMovementSamples.length > 0
+                    ? parseFloat((headMovementSamples.reduce((sum, position) => sum + (position.movementDelta || 0), 0) / headMovementSamples.length).toFixed(2))
+                    : 0;
+
+                const avgTypingSpeed = wordTypingEvents.length > 0
+                    ? parseFloat((wordTypingEvents.reduce((sum, event) => sum + (event.speed || 0), 0) / wordTypingEvents.length).toFixed(2))
+                    : 0;
+
+                const avgMouseSpeed = wordMouseMovements.length > 0
+                    ? parseFloat((wordMouseMovements.reduce((sum, movement) => sum + (movement.speed || 0), 0) / wordMouseMovements.length).toFixed(2))
+                    : 0;
+
+                return {
+                    sentenceIndex: index + 1,
+                    wordCount: sentence.wordCount,
+                    sentence: sentence.original,
+                    typingStartTime: typingStart,
+                    firstKeyTime: sentence.firstKeyTime,
+                    submitTime: submitTime,
+                    timeToFirstKeyMs: sentence.timeToFirstKeyMs || 0,
+                    timeToSubmitAfterDisappearMs: sentence.totalTypingDurationMs || 0,
+                    behaviorData: {
+                        typingEvents: wordTypingEvents,
+                        hesitationPauses: wordHesitationPauses,
+                        mouseMovements: wordMouseMovements,
+                        headSamples: wordHeadSamples,
+                        headPositions: wordHeadPositions,
+                        lookAwayCount: lookAwayCount,
+                        headTiltCount: headTiltCount,
+                        averageHeadMovement: averageHeadMovement,
+                        averageTypingSpeed: avgTypingSpeed,
+                        averageMouseSpeed: avgMouseSpeed
+                    }
+                };
+            });
             
             // Prepare game result
             const gameResult = {
@@ -630,13 +873,14 @@
                 startTime: gameState.startTime,
                 endTime: new Date().toISOString(),
                 score: gameState.score,
-                totalTimeSeconds: (new Date() - new Date(gameState.startTime)) / 1000,
+                totalTimeSeconds: totalTypingDurationMs / 1000,
                 completed: completed,
+                words: words,
                 
                 behaviorData: {
                     mouseMovements: mouseData.movements || [],
                     typingEvents: behaviorData.typingEvents || [],
-                    headPositions: [],
+                    headPositions: headData.headPositions || [],
                     hesitationPauses: behaviorData.hesitationPauses || [],
                     averageMouseSpeed: mouseData.averageSpeed || 0,
                     averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
@@ -697,6 +941,19 @@
             if (e.key === 'Enter' && !document.getElementById('submitBtn').disabled) {
                 checkAnswer();
             }
+        });
+
+        document.getElementById('userInput').addEventListener('input', () => {
+            if (!typingStartMs || firstKeyTimeMs) {
+                return;
+            }
+
+            const userInput = document.getElementById('userInput').value;
+            if (!userInput.length) {
+                return;
+            }
+
+            firstKeyTimeMs = Date.now();
         });
 
         console.log("Sentence Memory Test initialized with session:", gameState.sessionId);

@@ -20,29 +20,60 @@ namespace CognitiveOverloadLMS.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> StartSession([FromBody] string userName)
+        public async Task<IActionResult> StartSession([FromBody] StartSessionRequest request)
         {
             try
             {
+                if (request == null)
+                {
+                    return BadRequest(new { success = false, error = "Request body is required." });
+                }
+
+                if (string.IsNullOrWhiteSpace(request.FirstName) ||
+                    string.IsNullOrWhiteSpace(request.LastName) ||
+                    request.Age <= 0 ||
+                    string.IsNullOrWhiteSpace(request.Major) ||
+                    string.IsNullOrWhiteSpace(request.PhoneNumber) ||
+                    string.IsNullOrWhiteSpace(request.Email))
+                {
+                    return BadRequest(new { success = false, error = "All participant fields are required." });
+                }
+
+                var normalizedFirstName = request.FirstName.Trim();
+                var normalizedLastName = request.LastName.Trim();
+
                 var session = new UserSession
                 {
-                    UserName = userName,
+                    UserName = $"{normalizedFirstName} {normalizedLastName}",
+                    FirstName = normalizedFirstName,
+                    LastName = normalizedLastName,
+                    Age = request.Age,
+                    Major = request.Major.Trim(),
+                    PhoneNumber = request.PhoneNumber.Trim(),
+                    Email = request.Email.Trim(),
+                    IndexBehaviorData = request.IndexBehaviorData ?? new BehaviorData(),
                     StartTime = DateTime.UtcNow,
                     Games = new List<GameResult>()
                 };
 
                 await _sessions.InsertOneAsync(session);
-                
-                return Ok(new { sessionId = session.Id, success = true });
+
+                return Ok(new
+                {
+                    sessionId = session.Id,
+                    success = true,
+                    userName = session.UserName
+                });
             }
             catch (Exception ex)
             {
                 return BadRequest(new { success = false, error = ex.Message });
             }
         }
+
         public IActionResult Results()
-{
-    return View();
-}
+        {
+            return View();
+        }
     }
 }

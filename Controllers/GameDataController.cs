@@ -176,6 +176,12 @@ namespace CognitiveOverloadLMS.Controllers
                 return Ok(new { 
                     success = true,
                     userName = session.UserName,
+                    firstName = session.FirstName,
+                    lastName = session.LastName,
+                    age = session.Age,
+                    major = session.Major,
+                    phoneNumber = session.PhoneNumber,
+                    email = session.Email,
                     startTime = session.StartTime,
                     gamesPlayed = session.Games?.Count ?? 0,
                     games = session.Games

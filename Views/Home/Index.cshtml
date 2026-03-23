@@ -323,9 +323,6 @@
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow/tfjs@@3.21.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@@tensorflow-models/blazeface@@0.0.7/dist/blazeface.min.js"></script>
-    <script src="~/js/headTracker.js"></script>
     <script>
         const indexBehaviorTracker = {
             mouseMovements: [],
@@ -337,16 +334,6 @@
             maxSamples: 600,
             isActive: true
         };
-
-        const indexHeadTracker = new HeadTracker();
-
-        async function startIndexHeadTracking() {
-            try {
-                await indexHeadTracker.startTracking();
-            } catch (error) {
-                console.warn('Index head tracking unavailable:', error);
-            }
-        }
 
         function onIndexMouseMove(e) {
             if (!indexBehaviorTracker.isActive) {
@@ -416,7 +403,6 @@
         function buildIndexBehaviorData() {
             const mouseMovements = indexBehaviorTracker.mouseMovements;
             const typingEvents = indexBehaviorTracker.typingEvents;
-            const headData = indexHeadTracker.getData ? indexHeadTracker.getData() : null;
 
             const averageMouseSpeed = mouseMovements.length > 0
                 ? parseFloat((mouseMovements.reduce((sum, m) => sum + (m.speed || 0), 0) / mouseMovements.length).toFixed(2))
@@ -429,13 +415,9 @@
             return {
                 mouseMovements,
                 typingEvents,
-                headPositions: headData?.headPositions || [],
                 hesitationPauses: [],
                 averageMouseSpeed,
                 averageTypingSpeed,
-                averageHeadMovement: headData?.averageHeadMovement || 0,
-                lookAwayCount: headData?.lookAwayCount || 0,
-                headTiltCount: headData?.tiltCount || 0,
                 heartRate: 0,
                 heartRatebefore: 0
             };
@@ -445,14 +427,10 @@
             indexBehaviorTracker.isActive = false;
             document.removeEventListener('mousemove', onIndexMouseMove);
             document.removeEventListener('keydown', onIndexKeyDown);
-            if (indexHeadTracker.stopTracking) {
-                indexHeadTracker.stopTracking();
-            }
         }
 
         document.addEventListener('mousemove', onIndexMouseMove);
         document.addEventListener('keydown', onIndexKeyDown);
-        document.addEventListener('DOMContentLoaded', startIndexHeadTracking);
 
         document.getElementById('startBtn').addEventListener('click', async function() {
             const firstName = document.getElementById('firstName').value.trim();

@@ -15,14 +15,24 @@ class HeadTracker {
         this.tiltCount = 0;
         this.movementSum = 0;
         this.movementCount = 0;
-        this.sampleIntervalMs = 1000; // 1 FPS for minimal gameplay impact
+        this.sampleIntervalMs = 333; // ~3 FPS for more sensitive look-away detection
         this.isInferenceRunning = false;
+        this.wasLookAwayLastSample = false;
+
+        // Treat face near frame edges (or too small) as look-away even if still detected.
+        this.lookAwayThresholds = {
+            left: 0.24,
+            right: 0.76,
+            top: 0.24,
+            bottom: 0.76,
+            minFaceAreaRatio: 0.03
+        };
     }
 
     async startTracking() {
         try {
             if (this.isTracking) {
-                return;
+                return true;
             }
 
             this.headPositions = [];
@@ -32,6 +42,7 @@ class HeadTracker {
             this.tiltCount = 0;
             this.movementSum = 0;
             this.movementCount = 0;
+            this.wasLookAwayLastSample = false;
 
             // Low-res camera stream to reduce CPU/GPU load.
             this.stream = await navigator.mediaDevices.getUserMedia({
@@ -60,15 +71,20 @@ class HeadTracker {
                 }
 
                 this.isTracking = true;
+                // Capture one sample immediately so short sessions still record data.
+                await this.trackFace();
                 this.sampleTimer = setInterval(() => this.trackFace(), this.sampleIntervalMs);
                 console.log('✅ Head tracking started');
+                return true;
             } else {
                 console.warn('⚠️ TensorFlow/BlazeFace not loaded - head tracking unavailable');
                 this.isTracking = false;
+                return false;
             }
         } catch (err) {
             console.warn('⚠️ Camera access denied or unavailable:', err.message);
             this.isTracking = false;
+            return false;
         }
     }
 
@@ -90,6 +106,26 @@ class HeadTracker {
 
                 const x = (topLeft[0] + bottomRight[0]) / 2;
                 const y = (topLeft[1] + bottomRight[1]) / 2;
+
+                const frameWidth = this.video.videoWidth || 160;
+                const frameHeight = this.video.videoHeight || 120;
+                const normalizedX = x / frameWidth;
+                const normalizedY = y / frameHeight;
+                const faceWidthPx = Math.max(1, bottomRight[0] - topLeft[0]);
+                const faceHeightPx = Math.max(1, bottomRight[1] - topLeft[1]);
+                const faceAreaRatio = (faceWidthPx * faceHeightPx) / (frameWidth * frameHeight);
+
+                const isLookAway =
+                    normalizedX < this.lookAwayThresholds.left ||
+                    normalizedX > this.lookAwayThresholds.right ||
+                    normalizedY < this.lookAwayThresholds.top ||
+                    normalizedY > this.lookAwayThresholds.bottom ||
+                    faceAreaRatio < this.lookAwayThresholds.minFaceAreaRatio;
+
+                if (isLookAway && !this.wasLookAwayLastSample) {
+                    this.lookAwayCount++;
+                }
+                this.wasLookAwayLastSample = isLookAway;
 
                 // Estimate tilt using landmarks
                 const landmarks = face.landmarks;
@@ -137,7 +173,7 @@ class HeadTracker {
                     y: parseFloat(y.toFixed(2)),
                     z: parseFloat(z.toFixed(2)),
                     movementDelta: movementDelta,
-                    isLookAway: false,
+                    isLookAway: isLookAway,
                     isHeadTilt: isHeadTilt
                 });
 
@@ -146,7 +182,10 @@ class HeadTracker {
 
             } else {
                 // No face detected = looking away
-                this.lookAwayCount++;
+                if (!this.wasLookAwayLastSample) {
+                    this.lookAwayCount++;
+                }
+                this.wasLookAwayLastSample = true;
 
                 this.headSamples.push({
                     timestamp: new Date().toISOString(),
@@ -188,12 +227,22 @@ class HeadTracker {
             ? parseFloat((this.movementSum / this.movementCount).toFixed(2))
             : 0;
 
+        let derivedLookAwayCount = 0;
+        let lastLookAwayState = false;
+        for (const sample of this.headSamples) {
+            if (sample.isLookAway && !lastLookAwayState) {
+                derivedLookAwayCount++;
+            }
+            lastLookAwayState = sample.isLookAway;
+        }
+        const derivedTiltCount = this.headSamples.filter(sample => sample.isHeadTilt).length;
+
         return {
             headPositions: this.headPositions,
             headSamples: this.headSamples,
             averageHeadMovement: avgMovement,
-            lookAwayCount: this.lookAwayCount,
-            tiltCount: this.tiltCount
+            lookAwayCount: Math.max(this.lookAwayCount, derivedLookAwayCount),
+            tiltCount: Math.max(this.tiltCount, derivedTiltCount)
         };
     }
 }

@@ -10,9 +10,6 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("typingEvents")]
         public List<TypingEvent> TypingEvents { get; set; } = new();
         
-        [BsonElement("headPositions")]
-        public List<HeadPosition> HeadPositions { get; set; } = new();
-        
         [BsonElement("hesitationPauses")]
         public List<HesitationPause> HesitationPauses { get; set; } = new();
         
@@ -69,24 +66,6 @@ namespace CognitiveOverloadLMS.Models
         
         [BsonElement("speed")]
         public double Speed { get; set; }
-    }
-    
-    public class HeadPosition
-    {
-        [BsonElement("timestamp")]
-        public DateTime Timestamp { get; set; }
-        
-        [BsonElement("x")]
-        public double X { get; set; }
-        
-        [BsonElement("y")]
-        public double Y { get; set; }
-        
-        [BsonElement("z")]
-        public double Z { get; set; }
-        
-        [BsonElement("movementDelta")]
-        public double MovementDelta { get; set; }
     }
     
     public class HesitationPause

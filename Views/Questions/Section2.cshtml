@@ -418,6 +418,7 @@
         const behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
         const mouseTracker = new MouseSpeedTracker();
         const headTracker = new HeadTracker();
+        let headTrackingReady = false;
         const section2Leaderboard = [];
 
         // Timer variables for sentence reveal and typing stopwatch
@@ -442,11 +443,11 @@
         });
 
         // Start game
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeGame();
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initializeGame();
         });
 
-        function initializeGame() {
+        async function initializeGame() {
             // Prepare sentences: one from each word count (5-9)
             gameState.sentencesData = sentenceProgression.map((wordCount, index) => ({
                 wordCount: wordCount,
@@ -466,7 +467,7 @@
             // Start tracking
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
-            headTracker.startTracking();
+            headTrackingReady = await headTracker.startTracking();
             
             showReadyButton();
         }
@@ -546,7 +547,11 @@
             typingStopwatchTimer = setInterval(update, 50);
         }
 
-        function startSentence() {
+        async function startSentence() {
+            if (!headTrackingReady) {
+                headTrackingReady = await headTracker.startTracking();
+            }
+
             gameState.currentSentence = gameState.sentencesData[gameState.currentSentenceIndex];
             gameState.sentenceStartTime = new Date().toISOString();
             gameState.sentenceCurrentlyVisible = false;
@@ -855,7 +860,6 @@
                         hesitationPauses: wordHesitationPauses,
                         mouseMovements: wordMouseMovements,
                         headSamples: wordHeadSamples,
-                        headPositions: wordHeadPositions,
                         lookAwayCount: lookAwayCount,
                         headTiltCount: headTiltCount,
                         averageHeadMovement: averageHeadMovement,
@@ -880,7 +884,6 @@
                 behaviorData: {
                     mouseMovements: mouseData.movements || [],
                     typingEvents: behaviorData.typingEvents || [],
-                    headPositions: headData.headPositions || [],
                     hesitationPauses: behaviorData.hesitationPauses || [],
                     averageMouseSpeed: mouseData.averageSpeed || 0,
                     averageTypingSpeed: behaviorData.averageTypingSpeed || 0,

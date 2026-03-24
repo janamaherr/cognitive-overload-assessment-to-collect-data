@@ -403,6 +403,21 @@
         function buildIndexBehaviorData() {
             const mouseMovements = indexBehaviorTracker.mouseMovements;
             const typingEvents = indexBehaviorTracker.typingEvents;
+            const hesitationThresholdMs = 2000;
+
+            const hesitationPauses = typingEvents
+                .filter(event => (event.delaySinceLastKeyMs || 0) >= hesitationThresholdMs)
+                .map(event => {
+                    const end = new Date(event.timestamp);
+                    const start = new Date(end.getTime() - event.delaySinceLastKeyMs);
+
+                    return {
+                        startTime: start.toISOString(),
+                        endTime: end.toISOString(),
+                        durationSeconds: parseFloat((event.delaySinceLastKeyMs / 1000).toFixed(2)),
+                        location: 'index'
+                    };
+                });
 
             const averageMouseSpeed = mouseMovements.length > 0
                 ? parseFloat((mouseMovements.reduce((sum, m) => sum + (m.speed || 0), 0) / mouseMovements.length).toFixed(2))
@@ -415,7 +430,7 @@
             return {
                 mouseMovements,
                 typingEvents,
-                hesitationPauses: [],
+                hesitationPauses,
                 averageMouseSpeed,
                 averageTypingSpeed,
                 heartRate: 0,

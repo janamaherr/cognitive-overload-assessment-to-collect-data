@@ -252,7 +252,6 @@
                     behaviorData: {
                         mouseMovements: [],
                         typingEvents: [],
-                        headPositions: [],
                         hesitationPauses: [],
                         averageMouseSpeed: 0,
                         averageTypingSpeed: 0,
@@ -283,8 +282,8 @@
         });
         
         // Start the game
-        document.getElementById('startGameBtn').addEventListener('click', function() {
-            startNewGame();
+        document.getElementById('startGameBtn').addEventListener('click', async function() {
+            await startNewGame();
         });
         
         // Next game button
@@ -293,8 +292,8 @@
         });
         
         // Play again button
-        document.getElementById('playAgainBtn').addEventListener('click', function() {
-            resetAndPlayAgain();
+        document.getElementById('playAgainBtn').addEventListener('click', async function() {
+            await resetAndPlayAgain();
         });
 
         document.getElementById('openScoreboardBtn').addEventListener('click', function() {
@@ -319,7 +318,7 @@
             }, 2000);
         }
         
-        function startNewGame() {
+        async function startNewGame() {
             gameState.startTime = null;
             gameState.gameStarted = true;
             gameState.gameCompleted = false;
@@ -337,14 +336,14 @@
             // Start tracking behavior
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
-            headTracker.startTracking();
+            await headTracker.startTracking();
             
             console.log('Game initialized. Waiting for player turn to start timing.');
         }
         
-        function resetAndPlayAgain() {
+        async function resetAndPlayAgain() {
             // Game data was already saved when the game ended — just start fresh.
-            startNewGame();
+            await startNewGame();
         }
         
         function startTimer() {
@@ -597,9 +596,8 @@
                 completed: completed,
                 behaviorData: {
                     // Store only compact fields for query/index efficiency.
-                    mouseMovements: [],
-                    typingEvents: [],
-                    headPositions: [],
+                    mouseMovements: mouseData.movements || [],
+                    typingEvents: behaviorData.typingEvents || [],
                     hesitationPauses: boundedHesitationPauses,
                     averageMouseSpeed: mouseData.averageSpeed || 0,
                     averageTypingSpeed: behaviorData.averageTypingSpeed || 0,

@@ -571,7 +571,7 @@
         }
 
         // Start game
-        function startGame() {
+        async function startGame() {
             if (!behaviorLogger || !mouseTracker || !headTracker) {
                 behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
                 mouseTracker = new MouseSpeedTracker();
@@ -598,7 +598,7 @@
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
             if (isHeadTrackingEnabled) {
-                headTracker.startTracking();
+                await headTracker.startTracking();
             }
             
             if (animationFrame) cancelAnimationFrame(animationFrame);
@@ -693,7 +693,7 @@ async function saveGameData(completed) {
         }
         const headData = isHeadTrackingEnabled
             ? headTracker.getData()
-            : { headPositions: [], averageHeadMovement: 0, lookAwayCount: 0, tiltCount: 0 };
+            : { averageHeadMovement: 0, lookAwayCount: 0, tiltCount: 0 };
         
         const behaviorData = behaviorLogger.endGame();
         
@@ -725,7 +725,6 @@ async function saveGameData(completed) {
             behaviorData: {
                 mouseMovements: mouseData.movements || [],
                 typingEvents: behaviorData.typingEvents || [],
-                headPositions: [],
                 hesitationPauses: behaviorData.hesitationPauses || [],
                 averageMouseSpeed: mouseData.averageSpeed || 0,
                 averageTypingSpeed: behaviorData.averageTypingSpeed || 0,
@@ -781,7 +780,9 @@ async function saveGameData(completed) {
 }
 
         // Event listeners
-        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('startGameBtn').addEventListener('click', async function() {
+            await startGame();
+        });
         document.getElementById('shootBtn').addEventListener('click', shootArrow);
         document.getElementById('playAgainBtn').addEventListener('click', playAgain);
 

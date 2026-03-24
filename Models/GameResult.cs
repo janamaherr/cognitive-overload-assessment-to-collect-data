@@ -93,9 +93,6 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("headSamples")]
         public List<WordHeadSample> HeadSamples { get; set; } = new();
 
-        [BsonElement("headPositions")]
-        public List<HeadPosition> HeadPositions { get; set; } = new();
-
         [BsonElement("lookAwayCount")]
         public int LookAwayCount { get; set; }
 

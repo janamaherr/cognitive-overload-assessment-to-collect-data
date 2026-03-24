@@ -10,6 +10,10 @@ class MouseSpeedTracker {
 
     startTracking() {
         this.isTracking = true;
+        this.lastPosition = null;
+        this.lastTime = null;
+        this.lastSpeed = 0;
+        this.movements = [];
         this.handler = (e) => this.recordMovement(e);
         document.addEventListener('mousemove', this.handler);
     }
@@ -22,6 +26,7 @@ class MouseSpeedTracker {
             const dx = current.x - this.lastPosition.x;
             const dy = current.y - this.lastPosition.y;
             const dt = (now - this.lastTime) / 1000;
+
             if (dt > 0) {
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 const speed = distance / dt;

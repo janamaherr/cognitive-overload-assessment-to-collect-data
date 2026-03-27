@@ -43,7 +43,14 @@ namespace CognitiveOverloadLMS.Models
         [BsonIgnoreIfNull]
         public List<WordTelemetry>? Words { get; set; }
 
-        public Boolean Overloaded { get; set; }
+        [BsonElement("surveyavg")]
+        public double Surveyavg { get; set; }
+
+        [BsonElement("overloadScore")]
+        public double OverloadScore { get; set; }
+
+        [BsonElement("overloaded")]
+        public bool Overloaded { get; set; }
     }
 
     public class WordTelemetry

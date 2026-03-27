@@ -3,6 +3,7 @@ using CognitiveOverloadLMS.Models;
 using CognitiveOverloadLMS.Services;
 using MongoDB.Driver;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace CognitiveOverloadLMS.Controllers
 {
@@ -438,6 +439,111 @@ namespace CognitiveOverloadLMS.Controllers
             return Ok(new { success = true });
         }
 
+        [HttpGet("overload/analysis")]
+        public async Task<IActionResult> AnalyzeOverload([FromQuery] bool persist = false)
+        {
+            try
+            {
+                var allGames = await _gameResults
+                    .Find(r => r.SectionNumber >= 1 && r.SectionNumber <= 3)
+                    .ToListAsync();
+
+                if (!allGames.Any())
+                {
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "No game records found for sections 1-3.",
+                        totalGames = 0
+                    });
+                }
+
+                var rawBySection = allGames
+                    .GroupBy(g => g.SectionNumber)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(BuildRawIndicators).ToList());
+
+                var baselines = rawBySection.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => BuildBaseline(kvp.Value));
+
+                var perGame = new List<object>();
+                var validationPairs = new List<(double score, double surveyAvg, bool predicted, bool surveyOverloaded)>();
+
+                foreach (var game in allGames)
+                {
+                    var raw = BuildRawIndicators(game);
+                    var baseForSection = baselines[game.SectionNumber];
+                    var normalized = NormalizeIndicators(raw, baseForSection, game.SectionNumber);
+                    var overloadScore = CalculateWeightedScore(normalized, game.SectionNumber);
+                    var predictedOverloaded = overloadScore > 0.5;
+                    var hasSurvey = game.Surveyavg > 0;
+                    var surveyOverloaded = game.Surveyavg > 3.0;
+
+                    game.OverloadScore = Math.Round(overloadScore, 6);
+                    game.Overloaded = predictedOverloaded;
+
+                    if (persist)
+                    {
+                        await PersistOverloadResult(game);
+                    }
+
+                    if (hasSurvey)
+                    {
+                        validationPairs.Add((overloadScore, game.Surveyavg, predictedOverloaded, surveyOverloaded));
+                    }
+
+                    perGame.Add(new
+                    {
+                        game.Id,
+                        game.SessionId,
+                        game.SectionNumber,
+                        game.GameType,
+                        SurveyAvg = game.Surveyavg,
+                        RawIndicators = raw,
+                        NormalizedIndicators = normalized,
+                        OverloadScore = game.OverloadScore,
+                        PredictedOverloaded = game.Overloaded,
+                        SurveyOverloaded = hasSurvey ? surveyOverloaded : (bool?)null,
+                        HasSurvey = hasSurvey
+                    });
+                }
+
+                var correlation = CalculatePearsonCorrelation(validationPairs.Select(v => v.score).ToList(), validationPairs.Select(v => v.surveyAvg).ToList());
+                var correct = validationPairs.Count(v => v.predicted == v.surveyOverloaded);
+                var accuracy = validationPairs.Count > 0 ? (double)correct / validationPairs.Count : 0.0;
+
+                return Ok(new
+                {
+                    success = true,
+                    persist,
+                    thresholds = new
+                    {
+                        overloadScore = 0.5,
+                        surveyAvg = 3.0
+                    },
+                    totalGames = allGames.Count,
+                    withSurveyCount = validationPairs.Count,
+                    withoutSurveyCount = allGames.Count - validationPairs.Count,
+                    validation = new
+                    {
+                        pearsonCorrelation = correlation,
+                        accuracy = Math.Round(accuracy, 6),
+                        correct,
+                        compared = validationPairs.Count
+                    },
+                    baselines,
+                    perGame
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while analyzing overload");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
         private IMongoCollection<GameResult>? GetSectionCollection(int sectionNumber)
         {
             return sectionNumber switch
@@ -488,6 +594,204 @@ namespace CognitiveOverloadLMS.Controllers
                 // Fallback: keep incoming data as-is for unknown sections
                 _ => source
             };
+        }
+
+        private static Dictionary<string, double> BuildRawIndicators(GameResult game)
+        {
+            var behavior = game.BehaviorData ?? new BehaviorData();
+
+            return new Dictionary<string, double>
+            {
+                ["mouseSpeed"] = behavior.AverageMouseSpeed,
+                ["typingSpeed"] = behavior.AverageTypingSpeed,
+                ["hesitationPauses"] = behavior.HesitationPauses?.Count ?? 0,
+                ["headTilt"] = behavior.HeadTiltCount,
+                ["heartRate"] = behavior.HeartRate,
+                ["score"] = game.Score,
+                ["notCompleted"] = game.Completed ? 0.0 : 1.0,
+                ["typingEventsCount"] = behavior.TypingEvents?.Count ?? 0
+            };
+        }
+
+        private static Dictionary<string, object> BuildBaseline(List<Dictionary<string, double>> rows)
+        {
+            var keys = rows.SelectMany(r => r.Keys).Distinct();
+            var baseline = new Dictionary<string, object>();
+
+            foreach (var key in keys)
+            {
+                var vals = rows.Select(r => r.TryGetValue(key, out var v) ? v : 0.0).ToList();
+                var min = vals.Min();
+                var max = vals.Max();
+                var mean = vals.Average();
+
+                baseline[key] = new
+                {
+                    min = Math.Round(min, 6),
+                    max = Math.Round(max, 6),
+                    mean = Math.Round(mean, 6)
+                };
+            }
+
+            return baseline;
+        }
+
+        private static Dictionary<string, double> NormalizeIndicators(
+            Dictionary<string, double> raw,
+            Dictionary<string, object> baseline,
+            int sectionNumber)
+        {
+            var invertIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "mouseSpeed",
+                "typingSpeed",
+                "score"
+            };
+
+            var relevant = GetWeights(sectionNumber).Keys;
+            var normalized = new Dictionary<string, double>();
+
+            foreach (var indicator in relevant)
+            {
+                var value = raw.TryGetValue(indicator, out var rv) ? rv : 0.0;
+                if (!baseline.TryGetValue(indicator, out var baseObj))
+                {
+                    normalized[indicator] = 0.5;
+                    continue;
+                }
+
+                var minProp = baseObj.GetType().GetProperty("min");
+                var maxProp = baseObj.GetType().GetProperty("max");
+                var min = minProp != null ? (double)minProp.GetValue(baseObj)! : 0.0;
+                var max = maxProp != null ? (double)maxProp.GetValue(baseObj)! : 0.0;
+
+                var scaled = MinMaxNormalize(value, min, max);
+
+                if (invertIndicators.Contains(indicator))
+                {
+                    scaled = 1.0 - scaled;
+                }
+
+                normalized[indicator] = Math.Round(scaled, 6);
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<string, double> GetWeights(int sectionNumber)
+        {
+            return sectionNumber switch
+            {
+                1 => new Dictionary<string, double>
+                {
+                    ["mouseSpeed"] = 0.30,
+                    ["hesitationPauses"] = 0.25,
+                    ["headTilt"] = 0.20,
+                    ["notCompleted"] = 0.15,
+                    ["heartRate"] = 0.10
+                },
+                2 => new Dictionary<string, double>
+                {
+                    ["typingSpeed"] = 0.30,
+                    ["hesitationPauses"] = 0.25,
+                    ["headTilt"] = 0.20,
+                    ["score"] = 0.15,
+                    ["heartRate"] = 0.10
+                },
+                3 => new Dictionary<string, double>
+                {
+                    ["headTilt"] = 0.30,
+                    ["heartRate"] = 0.25,
+                    ["notCompleted"] = 0.20,
+                    ["typingEventsCount"] = 0.15,
+                    ["score"] = 0.10
+                },
+                _ => new Dictionary<string, double>()
+            };
+        }
+
+        private static double CalculateWeightedScore(Dictionary<string, double> normalized, int sectionNumber)
+        {
+            var weights = GetWeights(sectionNumber);
+            if (!weights.Any())
+            {
+                return 0.0;
+            }
+
+            var score = 0.0;
+            foreach (var (indicator, weight) in weights)
+            {
+                var value = normalized.TryGetValue(indicator, out var v) ? v : 0.5;
+                score += value * weight;
+            }
+
+            return Math.Clamp(score, 0.0, 1.0);
+        }
+
+        private static double MinMaxNormalize(double value, double min, double max)
+        {
+            if (max <= min)
+            {
+                return 0.5;
+            }
+
+            var normalized = (value - min) / (max - min);
+            return Math.Clamp(normalized, 0.0, 1.0);
+        }
+
+        private static double CalculatePearsonCorrelation(List<double> xs, List<double> ys)
+        {
+            if (xs.Count == 0 || ys.Count == 0 || xs.Count != ys.Count)
+            {
+                return 0.0;
+            }
+
+            var n = xs.Count;
+            var meanX = xs.Average();
+            var meanY = ys.Average();
+
+            var covariance = 0.0;
+            var varX = 0.0;
+            var varY = 0.0;
+
+            for (var i = 0; i < n; i++)
+            {
+                var dx = xs[i] - meanX;
+                var dy = ys[i] - meanY;
+                covariance += dx * dy;
+                varX += dx * dx;
+                varY += dy * dy;
+            }
+
+            if (varX <= 0 || varY <= 0)
+            {
+                return 0.0;
+            }
+
+            return Math.Round(covariance / Math.Sqrt(varX * varY), 6);
+        }
+
+        private async Task PersistOverloadResult(GameResult game)
+        {
+            var update = Builders<GameResult>.Update
+                .Set(g => g.OverloadScore, game.OverloadScore)
+                .Set(g => g.Overloaded, game.Overloaded);
+
+            await _gameResults.UpdateOneAsync(g => g.Id == game.Id, update);
+
+            var sectionCollection = GetSectionCollection(game.SectionNumber);
+            if (sectionCollection != null)
+            {
+                await sectionCollection.UpdateOneAsync(g => g.Id == game.Id, update);
+            }
+
+            var sessionUpdate = Builders<UserSession>.Update
+                .Set("games.$.overloadScore", game.OverloadScore)
+                .Set("games.$.overloaded", game.Overloaded);
+
+            await _userSessions.UpdateOneAsync(
+                s => s.Id == game.SessionId && s.Games.Any(g => g.Id == game.Id),
+                sessionUpdate);
         }
     }
 }

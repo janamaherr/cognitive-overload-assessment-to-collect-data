@@ -868,6 +868,14 @@
                     }
                 };
             });
+
+            const avgStartWriting = words.length > 0
+                ? words.reduce((sum, word) => sum + (word.timeToFirstKeyMs || 0), 0) / words.length
+                : 0;
+
+            const avgSubmitTime = words.length > 0
+                ? words.reduce((sum, word) => sum + (word.timeToSubmitAfterDisappearMs || 0), 0) / words.length
+                : 0;
             
             // Prepare game result
             const gameResult = {
@@ -898,7 +906,9 @@
                     sentencesCompleted: gameState.sentencesCompleted,
                     correctCount: correctCount,
                     totalSentences: gameState.totalSentences,
-                    accuracy: (correctCount / gameState.totalSentences) * 100
+                    accuracy: (correctCount / gameState.totalSentences) * 100,
+                    avgStartWriting: Number(avgStartWriting.toFixed(2)),
+                    avgSubmitTime: Number(avgSubmitTime.toFixed(2))
                 }
             };
             

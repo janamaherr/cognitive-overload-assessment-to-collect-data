@@ -54,6 +54,14 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("typingSpeedByWordCount")]
         [BsonIgnoreIfNull]
         public List<TypingSpeedByWordCount>? TypingSpeedByWordCount { get; set; }
+
+        [BsonElement("avgStartWriting")]
+        [BsonIgnoreIfNull]
+        public double? AvgStartWriting { get; set; }
+
+        [BsonElement("avgSubmitTime")]
+        [BsonIgnoreIfNull]
+        public double? AvgSubmitTime { get; set; }
         
         // Arrow Challenge Data - Simplified
         [BsonElement("score")]

@@ -51,6 +51,9 @@ namespace CognitiveOverloadLMS.Models
 
         [BsonElement("overloaded")]
         public bool Overloaded { get; set; }
+
+        [BsonElement("surveyOverloaded")]
+        public bool SurveyOverloaded { get; set; }
     }
 
     public class WordTelemetry

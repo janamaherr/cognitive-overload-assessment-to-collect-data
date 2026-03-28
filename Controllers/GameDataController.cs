@@ -440,13 +440,45 @@ namespace CognitiveOverloadLMS.Controllers
         }
 
         [HttpGet("overload/analysis")]
-        public async Task<IActionResult> AnalyzeOverload([FromQuery] bool persist = false)
+        public async Task<IActionResult> AnalyzeOverload(
+            [FromQuery] bool persist = false,
+            [FromQuery] bool syncFirst = false,
+            [FromQuery] double overloadThreshold = 0.5)
         {
             try
             {
-                var allGames = await _gameResults
-                    .Find(r => r.SectionNumber >= 1 && r.SectionNumber <= 3)
+                if (overloadThreshold < 0.0 || overloadThreshold > 1.0)
+                {
+                    return BadRequest(new { success = false, error = "overloadThreshold must be between 0 and 1." });
+                }
+
+                // Optional sync only when explicitly requested.
+                if (syncFirst)
+                {
+                    var syncSessions = await _userSessions.Find(_ => true).ToListAsync();
+                    await SyncCollectionsFromUserSessions(syncSessions);
+                }
+
+                // Use UserSessions.Games as source of truth because sessions may be manually corrected.
+                var sessions = await _userSessions
+                    .Find(_ => true)
                     .ToListAsync();
+
+                var allGames = sessions
+                    .Where(s => s.Games != null)
+                    .SelectMany(s => s.Games!
+                        .Where(g => g.SectionNumber >= 1 && g.SectionNumber <= 3)
+                        .Select(g =>
+                        {
+                            // Ensure session linkage exists for downstream updates.
+                            if (string.IsNullOrWhiteSpace(g.SessionId))
+                            {
+                                g.SessionId = s.Id ?? string.Empty;
+                            }
+
+                            return g;
+                        }))
+                    .ToList();
 
                 if (!allGames.Any())
                 {
@@ -468,6 +500,28 @@ namespace CognitiveOverloadLMS.Controllers
                     kvp => kvp.Key,
                     kvp => BuildBaseline(kvp.Value));
 
+                foreach (var (section, baseline) in baselines)
+                {
+                    _logger.LogInformation("=== BASELINE DEBUG (Section {Section}) ===", section);
+                    foreach (var (indicator, stats) in baseline)
+                    {
+                        _logger.LogInformation(
+                            "{Indicator} -> Min: {Min}, Max: {Max}, Mean: {Mean}",
+                            indicator,
+                            stats.Min,
+                            stats.Max,
+                            stats.Mean);
+                    }
+
+                    var relevant = GetWeights(section).Keys.ToList();
+                    if (relevant.Any() && relevant.All(indicator => baseline.TryGetValue(indicator, out var s) && s.Min == s.Max))
+                    {
+                        _logger.LogWarning(
+                            "Section {Section} has no variance across all weighted indicators (min == max). Normalized values may collapse to neutral/constant.",
+                            section);
+                    }
+                }
+
                 var perGame = new List<object>();
                 var validationPairs = new List<(double score, double surveyAvg, bool predicted, bool surveyOverloaded)>();
 
@@ -475,14 +529,24 @@ namespace CognitiveOverloadLMS.Controllers
                 {
                     var raw = BuildRawIndicators(game);
                     var baseForSection = baselines[game.SectionNumber];
-                    var normalized = NormalizeIndicators(raw, baseForSection, game.SectionNumber);
+                    var normalizationWarnings = new List<string>();
+                    var normalized = NormalizeIndicators(raw, baseForSection, game.SectionNumber, normalizationWarnings);
                     var overloadScore = CalculateWeightedScore(normalized, game.SectionNumber);
-                    var predictedOverloaded = overloadScore > 0.5;
+                    var predictedOverloaded = overloadScore > overloadThreshold;
                     var hasSurvey = game.Surveyavg > 0;
                     var surveyOverloaded = game.Surveyavg > 3.0;
 
+                    if (HasMissingBehaviorSignal(game))
+                    {
+                        _logger.LogWarning(
+                            "Game {GameId} (section {Section}) appears to have minimal behavior data (heartRate/headTilt/hesitation all zero).",
+                            game.Id,
+                            game.SectionNumber);
+                    }
+
                     game.OverloadScore = Math.Round(overloadScore, 6);
                     game.Overloaded = predictedOverloaded;
+                    game.SurveyOverloaded = hasSurvey && surveyOverloaded;
 
                     if (persist)
                     {
@@ -493,6 +557,53 @@ namespace CognitiveOverloadLMS.Controllers
                     {
                         validationPairs.Add((overloadScore, game.Surveyavg, predictedOverloaded, surveyOverloaded));
                     }
+
+                    // Detailed per-game debug logging.
+                    _logger.LogInformation("=== GAME DEBUG ===");
+                    _logger.LogInformation("Game ID: {GameId}, Section: {Section}", game.Id, game.SectionNumber);
+                    _logger.LogInformation(
+                        "Raw - HeartRate: {HeartRate}, Hesitation: {Hesitation}, HeadTilt: {HeadTilt}, MouseSpeed: {MouseSpeed}, TypingSpeed: {TypingSpeed}, Score: {Score}",
+                        GetIndicator(raw, "heartRate"),
+                        GetIndicator(raw, "hesitationPauses"),
+                        GetIndicator(raw, "headTilt"),
+                        GetIndicator(raw, "mouseSpeed"),
+                        GetIndicator(raw, "typingSpeed"),
+                        GetIndicator(raw, "score"));
+
+                    if (baseForSection.TryGetValue("heartRate", out var heartRateBaseline))
+                    {
+                        _logger.LogInformation(
+                            "Baseline HeartRate - Min: {Min}, Max: {Max}",
+                            heartRateBaseline.Min,
+                            heartRateBaseline.Max);
+                    }
+
+                    _logger.LogInformation(
+                        "Normalized values: {Normalized}",
+                        string.Join(", ", normalized.Select(kv => $"{kv.Key}={kv.Value:F4}")));
+
+                    var weights = GetWeights(game.SectionNumber);
+                    var weightedBreakdown = string.Join(
+                        ", ",
+                        weights.Select(w =>
+                        {
+                            var value = normalized.TryGetValue(w.Key, out var normalizedValue) ? normalizedValue : 0.5;
+                            return $"{w.Key}:{value:F4}*{w.Value:F2}={(value * w.Value):F4}";
+                        }));
+                    _logger.LogInformation("Weighted breakdown: {Breakdown}", weightedBreakdown);
+
+                    if (normalizationWarnings.Count > 0)
+                    {
+                        foreach (var warning in normalizationWarnings)
+                        {
+                            _logger.LogWarning("{Warning}", warning);
+                        }
+                    }
+
+                    _logger.LogInformation(
+                        "Final Overload Score: {Score}, Predicted: {Predicted}",
+                        overloadScore.ToString("F4"),
+                        predictedOverloaded);
 
                     perGame.Add(new
                     {
@@ -505,7 +616,7 @@ namespace CognitiveOverloadLMS.Controllers
                         NormalizedIndicators = normalized,
                         OverloadScore = game.OverloadScore,
                         PredictedOverloaded = game.Overloaded,
-                        SurveyOverloaded = hasSurvey ? surveyOverloaded : (bool?)null,
+                        SurveyOverloaded = hasSurvey ? game.SurveyOverloaded : (bool?)null,
                         HasSurvey = hasSurvey
                     });
                 }
@@ -518,9 +629,10 @@ namespace CognitiveOverloadLMS.Controllers
                 {
                     success = true,
                     persist,
+                    source = "UserSessions.Games",
                     thresholds = new
                     {
-                        overloadScore = 0.5,
+                        overloadScore = overloadThreshold,
                         surveyAvg = 3.0
                     },
                     totalGames = allGames.Count,
@@ -540,6 +652,75 @@ namespace CognitiveOverloadLMS.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error while analyzing overload");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
+        [HttpGet("overload/debug")]
+        public async Task<IActionResult> DebugSingleGameOverload([FromQuery] string sessionId, [FromQuery] int sectionNumber, [FromQuery] string? gameId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(sessionId))
+                {
+                    return BadRequest(new { success = false, error = "sessionId is required" });
+                }
+
+                var sessions = await _userSessions.Find(_ => true).ToListAsync();
+                var allGames = sessions
+                    .Where(s => s.Games != null)
+                    .SelectMany(s => s.Games!
+                        .Where(g => g.SectionNumber >= 1 && g.SectionNumber <= 3)
+                        .Select(g =>
+                        {
+                            if (string.IsNullOrWhiteSpace(g.SessionId))
+                            {
+                                g.SessionId = s.Id ?? string.Empty;
+                            }
+
+                            return g;
+                        }))
+                    .ToList();
+
+                var target = allGames
+                    .Where(g => g.SessionId == sessionId && g.SectionNumber == sectionNumber)
+                    .Where(g => string.IsNullOrWhiteSpace(gameId) || g.Id == gameId)
+                    .OrderByDescending(g => g.StartTime)
+                    .FirstOrDefault();
+
+                if (target == null)
+                {
+                    return NotFound(new { success = false, error = "No matching game found" });
+                }
+
+                var sectionRows = allGames
+                    .Where(g => g.SectionNumber == sectionNumber)
+                    .Select(BuildRawIndicators)
+                    .ToList();
+
+                var baseline = BuildBaseline(sectionRows);
+                var raw = BuildRawIndicators(target);
+                var warnings = new List<string>();
+                var normalized = NormalizeIndicators(raw, baseline, sectionNumber, warnings);
+                var overloadScore = CalculateWeightedScore(normalized, sectionNumber);
+
+                return Ok(new
+                {
+                    success = true,
+                    sessionId,
+                    sectionNumber,
+                    gameId = target.Id,
+                    raw,
+                    baseline,
+                    normalized,
+                    overloadScore = Math.Round(overloadScore, 6),
+                    predictedOverloaded = overloadScore > 0.5,
+                    warnings
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in single game overload debug");
                 return BadRequest(new { success = false, error = ex.Message });
             }
         }
@@ -580,7 +761,9 @@ namespace CognitiveOverloadLMS.Controllers
                     TotalSentences = source.TotalSentences,
                     TypingSpeedByWordCount = source.TypingSpeedByWordCount,
                     AverageWPM = source.AverageWPM,
-                    Accuracy = source.Accuracy
+                    Accuracy = source.Accuracy,
+                    AvgStartWriting = source.AvgStartWriting,
+                    AvgSubmitTime = source.AvgSubmitTime
                 },
 
                 // Section 3: Twisty Arrow Game
@@ -599,24 +782,35 @@ namespace CognitiveOverloadLMS.Controllers
         private static Dictionary<string, double> BuildRawIndicators(GameResult game)
         {
             var behavior = game.BehaviorData ?? new BehaviorData();
+            var words = game.Words ?? new List<WordTelemetry>();
+            var avgStartWriting = words.Count > 0 ? words.Average(w => (double)w.TimeToFirstKeyMs) : (game.GameData?.AvgStartWriting ?? 0.0);
+            var avgSubmitTime = words.Count > 0 ? words.Average(w => (double)w.TimeToSubmitAfterDisappearMs) : (game.GameData?.AvgSubmitTime ?? 0.0);
 
             return new Dictionary<string, double>
             {
                 ["mouseSpeed"] = behavior.AverageMouseSpeed,
+                ["averageMouseSpeed"] = behavior.AverageMouseSpeed,
                 ["typingSpeed"] = behavior.AverageTypingSpeed,
+                ["averageTypingSpeed"] = behavior.AverageTypingSpeed,
                 ["hesitationPauses"] = behavior.HesitationPauses?.Count ?? 0,
                 ["headTilt"] = behavior.HeadTiltCount,
                 ["heartRate"] = behavior.HeartRate,
                 ["score"] = game.Score,
-                ["notCompleted"] = game.Completed ? 0.0 : 1.0,
-                ["typingEventsCount"] = behavior.TypingEvents?.Count ?? 0
+                // "completed" is intentionally ignored for Section 3 overload scoring.
+                ["notCompleted"] = game.SectionNumber == 3 ? 0.0 : (game.Completed ? 0.0 : 1.0),
+                ["completed"] = game.Completed ? 1.0 : 0.0,
+                ["totalTimeSeconds"] = game.TotalTimeSeconds,
+                ["averageHeadMovement"] = behavior.AverageHeadMovement,
+                ["typingEventsCount"] = behavior.TypingEvents?.Count ?? 0,
+                ["avgStartWriting"] = avgStartWriting,
+                ["avgSubmitTime"] = avgSubmitTime
             };
         }
 
-        private static Dictionary<string, object> BuildBaseline(List<Dictionary<string, double>> rows)
+        private static Dictionary<string, BaselineStats> BuildBaseline(List<Dictionary<string, double>> rows)
         {
             var keys = rows.SelectMany(r => r.Keys).Distinct();
-            var baseline = new Dictionary<string, object>();
+            var baseline = new Dictionary<string, BaselineStats>();
 
             foreach (var key in keys)
             {
@@ -625,11 +819,11 @@ namespace CognitiveOverloadLMS.Controllers
                 var max = vals.Max();
                 var mean = vals.Average();
 
-                baseline[key] = new
+                baseline[key] = new BaselineStats
                 {
-                    min = Math.Round(min, 6),
-                    max = Math.Round(max, 6),
-                    mean = Math.Round(mean, 6)
+                    Min = Math.Round(min, 6),
+                    Max = Math.Round(max, 6),
+                    Mean = Math.Round(mean, 6)
                 };
             }
 
@@ -638,8 +832,9 @@ namespace CognitiveOverloadLMS.Controllers
 
         private static Dictionary<string, double> NormalizeIndicators(
             Dictionary<string, double> raw,
-            Dictionary<string, object> baseline,
-            int sectionNumber)
+            Dictionary<string, BaselineStats> baseline,
+            int sectionNumber,
+            List<string>? warnings = null)
         {
             var invertIndicators = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -657,13 +852,17 @@ namespace CognitiveOverloadLMS.Controllers
                 if (!baseline.TryGetValue(indicator, out var baseObj))
                 {
                     normalized[indicator] = 0.5;
+                    warnings?.Add($"Missing baseline for indicator '{indicator}'. Defaulting to 0.5.");
                     continue;
                 }
 
-                var minProp = baseObj.GetType().GetProperty("min");
-                var maxProp = baseObj.GetType().GetProperty("max");
-                var min = minProp != null ? (double)minProp.GetValue(baseObj)! : 0.0;
-                var max = maxProp != null ? (double)maxProp.GetValue(baseObj)! : 0.0;
+                var min = baseObj.Min;
+                var max = baseObj.Max;
+
+                if (max <= min)
+                {
+                    warnings?.Add($"Baseline min == max for '{indicator}' (min={min}, max={max}). Using 0.5 neutral normalized value.");
+                }
 
                 var scaled = MinMaxNormalize(value, min, max);
 
@@ -684,28 +883,59 @@ namespace CognitiveOverloadLMS.Controllers
             {
                 1 => new Dictionary<string, double>
                 {
-                    ["mouseSpeed"] = 0.30,
-                    ["hesitationPauses"] = 0.25,
-                    ["headTilt"] = 0.20,
-                    ["notCompleted"] = 0.15,
-                    ["heartRate"] = 0.10
+                    ["heartRate"] = 0.20,
+                    ["hesitationPauses"] = 0.15,
+                    ["headTilt"] = 0.10,
+                    ["mouseSpeed"] = 0.20,
+                    ["totalTimeSeconds"] = 0.15,
+                    ["notCompleted"] = 0.10,
+                    ["averageHeadMovement"] = 0.10
                 },
+                //heartRate → 20%
+                //hesitationPauses → 15%
+                //headTilt → 10%
+                //mouseSpeed → 20%
+                //timeTaken → 15%
+                //notCompleted → 10%
+                //averageHeadMovement → 10%
+
                 2 => new Dictionary<string, double>
                 {
-                    ["typingSpeed"] = 0.30,
-                    ["hesitationPauses"] = 0.25,
-                    ["headTilt"] = 0.20,
-                    ["score"] = 0.15,
-                    ["heartRate"] = 0.10
+                    ["heartRate"] = 0.20,
+                    ["hesitationPauses"] = 0.15,
+                    ["headTilt"] = 0.10,
+                    ["typingSpeed"] = 0.20,
+                    ["score"] = 0.10,
+                    ["avgStartWriting"] = 0.05,
+                    ["avgSubmitTime"] = 0.10,
+                    ["averageHeadMovement"] = 0.10  
                 },
+                //heartRate → 20%
+                //hesitationPauses → 15%
+                //headTilt → 10%
+                //typingSpeed → 20%
+                //score → 10%
+                //avgStartWriting → 5%
+                //avgSubmitTime → 10%
+                //averageHeadMovement → 10%
+
                 3 => new Dictionary<string, double>
                 {
-                    ["headTilt"] = 0.30,
-                    ["heartRate"] = 0.25,
-                    ["notCompleted"] = 0.20,
-                    ["typingEventsCount"] = 0.15,
-                    ["score"] = 0.10
+                    ["heartRate"] = 0.30,
+                    ["hesitationPauses"] = 0.15,
+                    ["headTilt"] = 0.10,
+                    ["score"] = 0.20,
+                    ["typingSpeed"] = 0.15,
+                    ["averageHeadMovement"] = 0.10  
+                    
                 },
+                //heartRate → 30%
+                //hesitationPauses → 15%
+                //headTilt → 10%
+                //score → 20%
+                //Avgtypingspeed → 15%
+                //averageHeadMovement → 10%
+
                 _ => new Dictionary<string, double>()
             };
         }
@@ -775,23 +1005,137 @@ namespace CognitiveOverloadLMS.Controllers
         {
             var update = Builders<GameResult>.Update
                 .Set(g => g.OverloadScore, game.OverloadScore)
-                .Set(g => g.Overloaded, game.Overloaded);
+                .Set(g => g.Overloaded, game.Overloaded)
+                .Set(g => g.SurveyOverloaded, game.SurveyOverloaded);
 
-            await _gameResults.UpdateOneAsync(g => g.Id == game.Id, update);
+            var gameFilter = BuildGameMatchFilter(game);
+
+            await _gameResults.UpdateManyAsync(gameFilter, update);
 
             var sectionCollection = GetSectionCollection(game.SectionNumber);
             if (sectionCollection != null)
             {
-                await sectionCollection.UpdateOneAsync(g => g.Id == game.Id, update);
+                await sectionCollection.UpdateManyAsync(gameFilter, update);
             }
 
-            var sessionUpdate = Builders<UserSession>.Update
-                .Set("games.$.overloadScore", game.OverloadScore)
-                .Set("games.$.overloaded", game.Overloaded);
+            var session = await _userSessions
+                .Find(s => s.Id == game.SessionId)
+                .FirstOrDefaultAsync();
+
+            if (session?.Games == null || !session.Games.Any())
+            {
+                return;
+            }
+
+            var index = session.Games.FindIndex(existing => IsSameGame(existing, game));
+            if (index < 0)
+            {
+                return;
+            }
+
+            session.Games[index].OverloadScore = game.OverloadScore;
+            session.Games[index].Overloaded = game.Overloaded;
+            session.Games[index].SurveyOverloaded = game.SurveyOverloaded;
 
             await _userSessions.UpdateOneAsync(
-                s => s.Id == game.SessionId && s.Games.Any(g => g.Id == game.Id),
-                sessionUpdate);
+                s => s.Id == session.Id,
+                Builders<UserSession>.Update.Set(s => s.Games, session.Games));
+        }
+
+        private static FilterDefinition<GameResult> BuildGameMatchFilter(GameResult game)
+        {
+            if (!string.IsNullOrWhiteSpace(game.Id))
+            {
+                return Builders<GameResult>.Filter.Eq(g => g.Id, game.Id);
+            }
+
+            return Builders<GameResult>.Filter.And(
+                Builders<GameResult>.Filter.Eq(g => g.SessionId, game.SessionId),
+                Builders<GameResult>.Filter.Eq(g => g.SectionNumber, game.SectionNumber),
+                Builders<GameResult>.Filter.Eq(g => g.GameType, game.GameType),
+                Builders<GameResult>.Filter.Eq(g => g.StartTime, game.StartTime));
+        }
+
+        private static bool IsSameGame(GameResult existing, GameResult candidate)
+        {
+            if (!string.IsNullOrWhiteSpace(existing.Id) && !string.IsNullOrWhiteSpace(candidate.Id))
+            {
+                return existing.Id == candidate.Id;
+            }
+
+            return existing.SectionNumber == candidate.SectionNumber
+                && existing.GameType == candidate.GameType
+                && existing.StartTime == candidate.StartTime;
+        }
+
+        private async Task SyncCollectionsFromUserSessions(List<UserSession> sessions)
+        {
+            var allSessionGames = sessions
+                .Where(s => s.Games != null)
+                .SelectMany(s => s.Games!
+                    .Where(g => g.SectionNumber >= 1 && g.SectionNumber <= 3)
+                    .Select(g =>
+                    {
+                        if (string.IsNullOrWhiteSpace(g.SessionId))
+                        {
+                            g.SessionId = s.Id ?? string.Empty;
+                        }
+
+                        return g;
+                    }))
+                .ToList();
+
+            foreach (var game in allSessionGames)
+            {
+                var filter = BuildGameMatchFilter(game);
+                var nonOverloadUpdate = BuildNonOverloadUpdate(game);
+                await _gameResults.UpdateManyAsync(filter, nonOverloadUpdate);
+
+                var sectionCollection = GetSectionCollection(game.SectionNumber);
+                if (sectionCollection != null)
+                {
+                    await sectionCollection.UpdateManyAsync(filter, nonOverloadUpdate);
+                }
+            }
+
+            _logger.LogInformation("Synced {Count} games from UserSessions into GameResults + section collections.", allSessionGames.Count);
+        }
+
+        private static double GetIndicator(Dictionary<string, double> raw, string key)
+        {
+            return raw.TryGetValue(key, out var value) ? value : 0.0;
+        }
+
+        private static bool HasMissingBehaviorSignal(GameResult game)
+        {
+            var behavior = game.BehaviorData ?? new BehaviorData();
+            return behavior.HeartRate == 0
+                && behavior.HeadTiltCount == 0
+                && (behavior.HesitationPauses?.Count ?? 0) == 0;
+        }
+
+        private static UpdateDefinition<GameResult> BuildNonOverloadUpdate(GameResult game)
+        {
+            return Builders<GameResult>.Update
+                .Set(g => g.SessionId, game.SessionId)
+                .Set(g => g.GameType, game.GameType)
+                .Set(g => g.SectionNumber, game.SectionNumber)
+                .Set(g => g.StartTime, game.StartTime)
+                .Set(g => g.EndTime, game.EndTime)
+                .Set(g => g.Score, game.Score)
+                .Set(g => g.TotalTimeSeconds, game.TotalTimeSeconds)
+                .Set(g => g.Completed, game.Completed)
+                .Set(g => g.BehaviorData, game.BehaviorData)
+                .Set(g => g.GameData, game.GameData)
+                .Set(g => g.Words, game.Words)
+                .Set(g => g.Surveyavg, game.Surveyavg);
+        }
+
+        private sealed class BaselineStats
+        {
+            public double Min { get; set; }
+            public double Max { get; set; }
+            public double Mean { get; set; }
         }
     }
 }

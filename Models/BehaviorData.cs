@@ -12,6 +12,9 @@ namespace CognitiveOverloadLMS.Models
         
         [BsonElement("hesitationPauses")]
         public List<HesitationPause> HesitationPauses { get; set; } = new();
+
+        [BsonElement("hesitationPauseCount")]
+        public int HesitationPauseCount { get; set; }
         
         [BsonElement("averageMouseSpeed")]
         public double AverageMouseSpeed { get; set; }

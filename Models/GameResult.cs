@@ -97,6 +97,9 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("hesitationPauses")]
         public List<HesitationPause> HesitationPauses { get; set; } = new();
 
+        [BsonElement("hesitationPauseCount")]
+        public int HesitationPauseCount { get; set; }
+
         [BsonElement("mouseMovements")]
         public List<MouseMovement> MouseMovements { get; set; } = new();
 

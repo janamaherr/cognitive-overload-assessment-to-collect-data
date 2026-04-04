@@ -84,6 +84,8 @@ namespace CognitiveOverloadLMS.Controllers
                 gameResult.BehaviorData ??= new BehaviorData();
                 gameResult.GameData ??= new GameSpecificData();
                 gameResult.GameData = BuildSectionSpecificGameData(gameResult.SectionNumber, gameResult.GameData);
+
+                gameResult.BehaviorData.HesitationPauseCount = gameResult.BehaviorData.HesitationPauses?.Count ?? 0;
                 
                 // Calculate total time
                 gameResult.TotalTimeSeconds = (gameResult.EndTime - gameResult.StartTime).TotalSeconds;
@@ -792,7 +794,7 @@ namespace CognitiveOverloadLMS.Controllers
                 ["averageMouseSpeed"] = behavior.AverageMouseSpeed,
                 ["typingSpeed"] = behavior.AverageTypingSpeed,
                 ["averageTypingSpeed"] = behavior.AverageTypingSpeed,
-                ["hesitationPauses"] = behavior.HesitationPauses?.Count ?? 0,
+                    ["hesitationPauses"] = behavior.HesitationPauseCount > 0 ? behavior.HesitationPauseCount : (behavior.HesitationPauses?.Count ?? 0),
                 ["headTilt"] = behavior.HeadTiltCount,
                 ["heartRate"] = behavior.HeartRate,
                 ["score"] = game.Score,
@@ -1111,6 +1113,7 @@ namespace CognitiveOverloadLMS.Controllers
             var behavior = game.BehaviorData ?? new BehaviorData();
             return behavior.HeartRate == 0
                 && behavior.HeadTiltCount == 0
+                && behavior.HesitationPauseCount == 0
                 && (behavior.HesitationPauses?.Count ?? 0) == 0;
         }
 

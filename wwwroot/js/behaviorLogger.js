@@ -99,6 +99,7 @@ class BehaviorLogger {
         return {
             typingEvents: this.typingEvents,
             hesitationPauses: this.hesitationPauses.filter(p => p.endTime != null),
+            hesitationPauseCount: this.hesitationPauses.filter(p => p.endTime != null).length,
             averageTypingSpeed: avgTypingSpeed
         };
     }

@@ -1,5 +1,4 @@
 using MongoDB.Driver;
-using MongoDB.Bson;
 
 namespace CognitiveOverloadLMS.Services
 {
@@ -16,17 +15,12 @@ namespace CognitiveOverloadLMS.Services
                 var databaseName = configuration.GetSection("MongoDBSettings:DatabaseName").Value;
                 
                 Console.WriteLine($"Connecting to MongoDB: {connectionString?.Replace(GetPassword(connectionString), "****")}");
-                
-                var settings = MongoClientSettings.FromConnectionString(connectionString);
-                settings.ServerApi = new ServerApi(ServerApiVersion.V1);
-                
-                _client = new MongoClient(settings);
-                
-                // Test the connection
+
+                // Use direct client initialization to avoid eager SRV/TXT DNS resolution on startup.
+                _client = new MongoClient(connectionString);
                 _database = _client.GetDatabase(databaseName);
-                _database.RunCommandAsync((Command<BsonDocument>)"{ping:1}").Wait();
                 
-                Console.WriteLine("Successfully connected to MongoDB!");
+                Console.WriteLine("MongoDB client initialized.");
             }
             catch (Exception ex)
             {

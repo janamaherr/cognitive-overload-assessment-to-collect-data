@@ -34,6 +34,9 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("heartRate")]
         public double HeartRate { get; set; }
 
+        [BsonElement("heartRateDifference")]
+        public double? HeartRateDifference { get; set; }
+
         [BsonElement("heartRatebefore")]
         public int InitialHeartRate { get; set; }
     }

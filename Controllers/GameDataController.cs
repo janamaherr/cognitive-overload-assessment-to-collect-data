@@ -86,6 +86,7 @@ namespace CognitiveOverloadLMS.Controllers
                 gameResult.GameData = BuildSectionSpecificGameData(gameResult.SectionNumber, gameResult.GameData);
 
                 gameResult.BehaviorData.HesitationPauseCount = gameResult.BehaviorData.HesitationPauses?.Count ?? 0;
+                gameResult.BehaviorData.HeartRateDifference ??= GetHeartRateDifference(gameResult.BehaviorData);
                 
                 // Calculate total time
                 gameResult.TotalTimeSeconds = (gameResult.EndTime - gameResult.StartTime).TotalSeconds;
@@ -454,17 +455,16 @@ namespace CognitiveOverloadLMS.Controllers
                     return BadRequest(new { success = false, error = "overloadThreshold must be between 0 and 1." });
                 }
 
-                // Optional sync only when explicitly requested.
-                if (syncFirst)
-                {
-                    var syncSessions = await _userSessions.Find(_ => true).ToListAsync();
-                    await SyncCollectionsFromUserSessions(syncSessions);
-                }
-
                 // Use UserSessions.Games as source of truth because sessions may be manually corrected.
                 var sessions = await _userSessions
                     .Find(_ => true)
                     .ToListAsync();
+
+                var backfillResult = await BackfillHeartRateDifferencesAsync(sessions);
+                _logger.LogInformation(
+                    "Backfilled heartRateDifference for {UpdatedGames} games across {UpdatedSessions} sessions.",
+                    backfillResult.UpdatedGames,
+                    backfillResult.UpdatedSessions);
 
                 var allGames = sessions
                     .Where(s => s.Games != null)
@@ -541,7 +541,7 @@ namespace CognitiveOverloadLMS.Controllers
                     if (HasMissingBehaviorSignal(game))
                     {
                         _logger.LogWarning(
-                            "Game {GameId} (section {Section}) appears to have minimal behavior data (heartRate/headTilt/hesitation all zero).",
+                                "Game {GameId} (section {Section}) appears to have minimal behavior data (heartRateDifference/headTilt/hesitation all zero).",
                             game.Id,
                             game.SectionNumber);
                     }
@@ -564,20 +564,20 @@ namespace CognitiveOverloadLMS.Controllers
                     _logger.LogInformation("=== GAME DEBUG ===");
                     _logger.LogInformation("Game ID: {GameId}, Section: {Section}", game.Id, game.SectionNumber);
                     _logger.LogInformation(
-                        "Raw - HeartRate: {HeartRate}, Hesitation: {Hesitation}, HeadTilt: {HeadTilt}, MouseSpeed: {MouseSpeed}, TypingSpeed: {TypingSpeed}, Score: {Score}",
-                        GetIndicator(raw, "heartRate"),
+                        "Raw - HeartRateDifference: {HeartRateDifference}, Hesitation: {Hesitation}, HeadTilt: {HeadTilt}, MouseSpeed: {MouseSpeed}, TypingSpeed: {TypingSpeed}, Score: {Score}",
+                        GetIndicator(raw, "heartRateDifference"),
                         GetIndicator(raw, "hesitationPauses"),
                         GetIndicator(raw, "headTilt"),
                         GetIndicator(raw, "mouseSpeed"),
                         GetIndicator(raw, "typingSpeed"),
                         GetIndicator(raw, "score"));
 
-                    if (baseForSection.TryGetValue("heartRate", out var heartRateBaseline))
+                    if (baseForSection.TryGetValue("heartRateDifference", out var heartRateDifferenceBaseline))
                     {
                         _logger.LogInformation(
-                            "Baseline HeartRate - Min: {Min}, Max: {Max}",
-                            heartRateBaseline.Min,
-                            heartRateBaseline.Max);
+                            "Baseline HeartRateDifference - Min: {Min}, Max: {Max}",
+                            heartRateDifferenceBaseline.Min,
+                            heartRateDifferenceBaseline.Max);
                     }
 
                     _logger.LogInformation(
@@ -796,7 +796,7 @@ namespace CognitiveOverloadLMS.Controllers
                 ["averageTypingSpeed"] = behavior.AverageTypingSpeed,
                     ["hesitationPauses"] = behavior.HesitationPauseCount > 0 ? behavior.HesitationPauseCount : (behavior.HesitationPauses?.Count ?? 0),
                 ["headTilt"] = behavior.HeadTiltCount,
-                ["heartRate"] = behavior.HeartRate,
+                ["heartRateDifference"] = GetHeartRateDifference(behavior),
                 ["score"] = game.Score,
                 // "completed" is intentionally ignored for Section 3 overload scoring.
                 ["notCompleted"] = game.SectionNumber == 3 ? 0.0 : (game.Completed ? 0.0 : 1.0),
@@ -885,7 +885,7 @@ namespace CognitiveOverloadLMS.Controllers
             {
                 1 => new Dictionary<string, double>
                 {
-                    ["heartRate"] = 0.20,
+                    ["heartRateDifference"] = 0.20,
                     ["hesitationPauses"] = 0.15,
                     ["headTilt"] = 0.10,
                     ["mouseSpeed"] = 0.20,
@@ -893,7 +893,7 @@ namespace CognitiveOverloadLMS.Controllers
                     ["notCompleted"] = 0.10,
                     ["averageHeadMovement"] = 0.10
                 },
-                //heartRate → 20%
+                //heartRateDifference → 20%
                 //hesitationPauses → 15%
                 //headTilt → 10%
                 //mouseSpeed → 20%
@@ -903,7 +903,7 @@ namespace CognitiveOverloadLMS.Controllers
 
                 2 => new Dictionary<string, double>
                 {
-                    ["heartRate"] = 0.20,
+                    ["heartRateDifference"] = 0.20,
                     ["hesitationPauses"] = 0.15,
                     ["headTilt"] = 0.10,
                     ["typingSpeed"] = 0.20,
@@ -912,7 +912,7 @@ namespace CognitiveOverloadLMS.Controllers
                     ["avgSubmitTime"] = 0.10,
                     ["averageHeadMovement"] = 0.10  
                 },
-                //heartRate → 20%
+                //heartRateDifference → 20%
                 //hesitationPauses → 15%
                 //headTilt → 10%
                 //typingSpeed → 20%
@@ -923,7 +923,7 @@ namespace CognitiveOverloadLMS.Controllers
 
                 3 => new Dictionary<string, double>
                 {
-                    ["heartRate"] = 0.30,
+                    ["heartRateDifference"] = 0.30,
                     ["hesitationPauses"] = 0.15,
                     ["headTilt"] = 0.10,
                     ["score"] = 0.20,
@@ -931,7 +931,7 @@ namespace CognitiveOverloadLMS.Controllers
                     ["averageHeadMovement"] = 0.10  
                     
                 },
-                //heartRate → 30%
+                //heartRateDifference → 30%
                 //hesitationPauses → 15%
                 //headTilt → 10%
                 //score → 20%
@@ -1108,10 +1108,120 @@ namespace CognitiveOverloadLMS.Controllers
             return raw.TryGetValue(key, out var value) ? value : 0.0;
         }
 
+        private static double GetHeartRateDifference(BehaviorData behavior)
+        {
+            if (behavior.HeartRateDifference.HasValue)
+            {
+                return behavior.HeartRateDifference.Value;
+            }
+
+            return behavior.HeartRate - behavior.InitialHeartRate;
+        }
+
+        private async Task<HeartRateBackfillResult> BackfillHeartRateDifferencesAsync(List<UserSession> sessions)
+        {
+            var gameWrites = new List<WriteModel<GameResult>>();
+            var sectionWrites = new Dictionary<int, List<WriteModel<GameResult>>>();
+            var sessionWrites = new List<WriteModel<UserSession>>();
+            var updatedGames = 0;
+            var updatedSessions = 0;
+
+            foreach (var session in sessions)
+            {
+                if (session.Games == null)
+                {
+                    continue;
+                }
+
+                var sessionChanged = false;
+
+                foreach (var game in session.Games)
+                {
+                    game.BehaviorData ??= new BehaviorData();
+
+                    var expectedDifference = GetHeartRateDifference(game.BehaviorData);
+                    if (game.BehaviorData.HeartRateDifference.HasValue
+                        && Math.Abs(game.BehaviorData.HeartRateDifference.Value - expectedDifference) < 0.000001)
+                    {
+                        continue;
+                    }
+
+                    game.BehaviorData.HeartRateDifference = expectedDifference;
+                    sessionChanged = true;
+                    updatedGames++;
+
+                    var filter = BuildGameMatchFilter(game);
+                    var update = Builders<GameResult>.Update.Set(g => g.BehaviorData.HeartRateDifference, expectedDifference);
+
+                    gameWrites.Add(new UpdateOneModel<GameResult>(filter, update) { IsUpsert = false });
+
+                    if (!sectionWrites.TryGetValue(game.SectionNumber, out var sectionWriteModels))
+                    {
+                        sectionWriteModels = new List<WriteModel<GameResult>>();
+                        sectionWrites[game.SectionNumber] = sectionWriteModels;
+                    }
+
+                    sectionWriteModels.Add(new UpdateOneModel<GameResult>(filter, update) { IsUpsert = false });
+                }
+
+                if (sessionChanged)
+                {
+                    updatedSessions++;
+                    sessionWrites.Add(new UpdateOneModel<UserSession>(
+                        Builders<UserSession>.Filter.Eq(s => s.Id, session.Id),
+                        Builders<UserSession>.Update.Set(s => s.Games, session.Games))
+                    {
+                        IsUpsert = false
+                    });
+                }
+            }
+
+            await ExecuteBulkWriteInBatches(_gameResults, gameWrites);
+
+            foreach (var (sectionNumber, writes) in sectionWrites)
+            {
+                var sectionCollection = GetSectionCollection(sectionNumber);
+                if (sectionCollection != null)
+                {
+                    await ExecuteBulkWriteInBatches(sectionCollection, writes);
+                }
+            }
+
+            await ExecuteBulkWriteInBatches(_userSessions, sessionWrites);
+
+            return new HeartRateBackfillResult
+            {
+                UpdatedGames = updatedGames,
+                UpdatedSessions = updatedSessions
+            };
+        }
+
+        private static async Task ExecuteBulkWriteInBatches<T>(IMongoCollection<T> collection, List<WriteModel<T>> writes)
+        {
+            if (writes.Count == 0)
+            {
+                return;
+            }
+
+            const int batchSize = 500;
+
+            for (var index = 0; index < writes.Count; index += batchSize)
+            {
+                var batch = writes.Skip(index).Take(batchSize).ToList();
+                await collection.BulkWriteAsync(batch, new BulkWriteOptions { IsOrdered = false });
+            }
+        }
+
+        private sealed class HeartRateBackfillResult
+        {
+            public int UpdatedGames { get; set; }
+            public int UpdatedSessions { get; set; }
+        }
+
         private static bool HasMissingBehaviorSignal(GameResult game)
         {
             var behavior = game.BehaviorData ?? new BehaviorData();
-            return behavior.HeartRate == 0
+            return GetHeartRateDifference(behavior) == 0
                 && behavior.HeadTiltCount == 0
                 && behavior.HesitationPauseCount == 0
                 && (behavior.HesitationPauses?.Count ?? 0) == 0;

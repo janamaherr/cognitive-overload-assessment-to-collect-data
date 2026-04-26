@@ -47,4 +47,6 @@ app.MapControllerRoute(
     pattern: "Questions/{action=Section1}/{id?}",
     defaults: new { controller = "Questions" });
 
+builder.Services.AddHttpClient();
+
 app.Run();

@@ -46,6 +46,10 @@ namespace CognitiveOverloadLMS.Models
         [BsonElement("surveyavg")]
         public double Surveyavg { get; set; }
 
+        [BsonElement("postGameSurvey")]
+        [BsonIgnoreIfNull]
+        public PostGameSurvey? PostGameSurvey { get; set; }
+
         [BsonElement("overloadScore")]
         public double OverloadScore { get; set; }
 
@@ -120,6 +124,21 @@ namespace CognitiveOverloadLMS.Models
 
         [BsonElement("averageMouseSpeed")]
         public double AverageMouseSpeed { get; set; }
+    }
+
+    public class PostGameSurvey
+    {
+        [BsonElement("frustrationStressAnnoyed")]
+        public int FrustrationStressAnnoyed { get; set; }
+
+        [BsonElement("timePressure")]
+        public int TimePressure { get; set; }
+
+        [BsonElement("mentalEffort")]
+        public int MentalEffort { get; set; }
+
+        [BsonElement("success")]
+        public int Success { get; set; }
     }
 
     public class WordHeadSample

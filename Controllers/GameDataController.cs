@@ -146,6 +146,77 @@ namespace CognitiveOverloadLMS.Controllers
             }
         }
 
+        [HttpPost("survey")]
+        public async Task<IActionResult> UpdateGameSurvey([FromBody] GameSurveyUpdateRequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.GameId))
+                {
+                    return BadRequest(new { success = false, error = "GameId is required" });
+                }
+
+                if (request.SurveyResponses == null)
+                {
+                    return BadRequest(new { success = false, error = "Survey responses are required" });
+                }
+
+                var surveyAvg = Math.Round(
+                    (request.SurveyResponses.FrustrationStressAnnoyed
+                    + request.SurveyResponses.TimePressure
+                    + request.SurveyResponses.MentalEffort
+                    + request.SurveyResponses.Success) / 4.0,
+                    2);
+                var surveyOverloaded = surveyAvg > 3.0;
+
+                var update = Builders<GameResult>.Update
+                    .Set(g => g.Surveyavg, surveyAvg)
+                    .Set(g => g.SurveyOverloaded, surveyOverloaded)
+                    .Set(g => g.PostGameSurvey, request.SurveyResponses);
+
+                var gameFilter = Builders<GameResult>.Filter.Eq(g => g.Id, request.GameId);
+                await _gameResults.UpdateOneAsync(gameFilter, update);
+
+                var game = await _gameResults.Find(gameFilter).FirstOrDefaultAsync();
+                if (game != null)
+                {
+                    var sectionCollection = GetSectionCollection(game.SectionNumber);
+                    if (sectionCollection != null)
+                    {
+                        await sectionCollection.UpdateOneAsync(gameFilter, update);
+                    }
+
+                    var session = await _userSessions.Find(s => s.Id == game.SessionId).FirstOrDefaultAsync();
+                    if (session?.Games != null)
+                    {
+                        var index = session.Games.FindIndex(existing => IsSameGame(existing, game));
+                        if (index >= 0)
+                        {
+                            session.Games[index].Surveyavg = surveyAvg;
+                            session.Games[index].SurveyOverloaded = surveyOverloaded;
+                            session.Games[index].PostGameSurvey = request.SurveyResponses;
+
+                            await _userSessions.UpdateOneAsync(
+                                s => s.Id == session.Id,
+                                Builders<UserSession>.Update.Set(s => s.Games, session.Games));
+                        }
+                    }
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    surveyavg = surveyAvg,
+                    surveyOverloaded
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating game survey");
+                return BadRequest(new { success = false, error = ex.Message });
+            }
+        }
+
         [HttpGet("session/{sessionId}")]
         public async Task<IActionResult> GetSessionResults(string sessionId)
         {
@@ -1249,6 +1320,12 @@ namespace CognitiveOverloadLMS.Controllers
             public double Min { get; set; }
             public double Max { get; set; }
             public double Mean { get; set; }
+        }
+
+        public sealed class GameSurveyUpdateRequest
+        {
+            public string GameId { get; set; } = string.Empty;
+            public PostGameSurvey? SurveyResponses { get; set; }
         }
     }
 }

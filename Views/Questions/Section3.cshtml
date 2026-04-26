@@ -101,6 +101,40 @@
     }
     .btn-scoreboard:hover { background: rgba(255,255,255,0.18); color: #fff; }
 
+    .survey-step {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 1rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .survey-scale-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.55);
+        margin-bottom: 0.35rem;
+    }
+
+    .survey-pill {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.85);
+        border-radius: 999px;
+        min-width: 42px;
+        padding: 0.35rem 0.75rem;
+        font-weight: 700;
+        transition: all 0.15s ease;
+    }
+
+    .btn-check:checked + .survey-pill {
+        background: linear-gradient(90deg, #f5a623, #f04e23);
+        color: #fff;
+        border-color: transparent;
+        box-shadow: 0 4px 14px rgba(245,166,35,0.35);
+    }
+
     .head-tracking-toggle {
         background: rgba(255,255,255,0.06);
         border: 1px solid rgba(255,255,255,0.12);
@@ -171,6 +205,71 @@
             <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" id="headTrackingToggle">
                 <label class="form-check-label" for="headTrackingToggle">Enable head tracking <span style="opacity:0.6;">(may reduce performance)</span></label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="postGameSurveyModal" tabindex="-1" aria-labelledby="postGameSurveyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0" style="background:linear-gradient(90deg,#f5a623,#f04e23);border-radius:1.25rem 1.25rem 0 0;">
+                <div>
+                    <h5 class="modal-title fw-800" id="postGameSurveyModalLabel">🎮 Quick Game Reflection</h5>
+                    <div style="font-size:0.82rem;opacity:0.85;">Answer a few quick questions before replaying.</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-4">
+                <div class="survey-step">
+                    <div class="fw-bold mb-2">How frustrated, stressed, or annoyed did you feel?</div>
+                    <div class="survey-scale-label"><span>Not at all</span><span>Extremely</span></div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <input class="btn-check" type="radio" name="surveyFrustration" id="s3-q1-1" value="1"><label class="btn survey-pill" for="s3-q1-1">1</label>
+                        <input class="btn-check" type="radio" name="surveyFrustration" id="s3-q1-2" value="2"><label class="btn survey-pill" for="s3-q1-2">2</label>
+                        <input class="btn-check" type="radio" name="surveyFrustration" id="s3-q1-3" value="3"><label class="btn survey-pill" for="s3-q1-3">3</label>
+                        <input class="btn-check" type="radio" name="surveyFrustration" id="s3-q1-4" value="4"><label class="btn survey-pill" for="s3-q1-4">4</label>
+                        <input class="btn-check" type="radio" name="surveyFrustration" id="s3-q1-5" value="5"><label class="btn survey-pill" for="s3-q1-5">5</label>
+                    </div>
+                </div>
+                <div class="survey-step">
+                    <div class="fw-bold mb-2">How much time pressure did you feel during this game?</div>
+                    <div class="survey-scale-label"><span>Very low</span><span>Very high</span></div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <input class="btn-check" type="radio" name="surveyTimePressure" id="s3-q2-1" value="1"><label class="btn survey-pill" for="s3-q2-1">1</label>
+                        <input class="btn-check" type="radio" name="surveyTimePressure" id="s3-q2-2" value="2"><label class="btn survey-pill" for="s3-q2-2">2</label>
+                        <input class="btn-check" type="radio" name="surveyTimePressure" id="s3-q2-3" value="3"><label class="btn survey-pill" for="s3-q2-3">3</label>
+                        <input class="btn-check" type="radio" name="surveyTimePressure" id="s3-q2-4" value="4"><label class="btn survey-pill" for="s3-q2-4">4</label>
+                        <input class="btn-check" type="radio" name="surveyTimePressure" id="s3-q2-5" value="5"><label class="btn survey-pill" for="s3-q2-5">5</label>
+                    </div>
+                </div>
+                <div class="survey-step">
+                    <div class="fw-bold mb-2">How much mental effort did this game require?</div>
+                    <div class="survey-scale-label"><span>Very low</span><span>Very high</span></div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <input class="btn-check" type="radio" name="surveyMentalEffort" id="s3-q3-1" value="1"><label class="btn survey-pill" for="s3-q3-1">1</label>
+                        <input class="btn-check" type="radio" name="surveyMentalEffort" id="s3-q3-2" value="2"><label class="btn survey-pill" for="s3-q3-2">2</label>
+                        <input class="btn-check" type="radio" name="surveyMentalEffort" id="s3-q3-3" value="3"><label class="btn survey-pill" for="s3-q3-3">3</label>
+                        <input class="btn-check" type="radio" name="surveyMentalEffort" id="s3-q3-4" value="4"><label class="btn survey-pill" for="s3-q3-4">4</label>
+                        <input class="btn-check" type="radio" name="surveyMentalEffort" id="s3-q3-5" value="5"><label class="btn survey-pill" for="s3-q3-5">5</label>
+                    </div>
+                </div>
+                <div class="survey-step mb-0">
+                    <div class="fw-bold mb-2">How successful do you think you were in completing the game?</div>
+                    <div class="survey-scale-label"><span>Not successful</span><span>Very successful</span></div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-center">
+                        <input class="btn-check" type="radio" name="surveySuccess" id="s3-q4-1" value="1"><label class="btn survey-pill" for="s3-q4-1">1</label>
+                        <input class="btn-check" type="radio" name="surveySuccess" id="s3-q4-2" value="2"><label class="btn survey-pill" for="s3-q4-2">2</label>
+                        <input class="btn-check" type="radio" name="surveySuccess" id="s3-q4-3" value="3"><label class="btn survey-pill" for="s3-q4-3">3</label>
+                        <input class="btn-check" type="radio" name="surveySuccess" id="s3-q4-4" value="4"><label class="btn survey-pill" for="s3-q4-4">4</label>
+                        <input class="btn-check" type="radio" name="surveySuccess" id="s3-q4-5" value="5"><label class="btn survey-pill" for="s3-q4-5">5</label>
+                    </div>
+                </div>
+                <div id="surveyError" class="text-danger fw-bold mt-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-4 px-4 justify-content-between">
+                <button type="button" class="btn btn-game-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="submitSurveyBtn" class="btn btn-game-primary">Save & Replay</button>
             </div>
         </div>
     </div>
@@ -252,6 +351,8 @@
         let headTracker;
         let isHeadTrackingEnabled = true;
         const section3Leaderboard = [];
+        let currentSavedGameId = null;
+        let pendingSurveyAction = null;
 
         // Verify session
         if (!gameState.sessionId) {
@@ -586,6 +687,8 @@
             gameState.arrowsStuck = 0;
             gameState.failedAttempts = 0;
             gameState.arrowThrows = [];
+            currentSavedGameId = null;
+            pendingSurveyAction = null;
             
             arrows = [];
             rotationAngle = 0;
@@ -629,8 +732,7 @@
 
         // Play again
         function playAgain() {
-            gameState.arrowsStuck = 0;
-            startGame();
+            openPostGameSurvey('replay');
         }
 
         function renderSection3Leaderboard() {
@@ -671,6 +773,84 @@
                 console.error('Error fetching Section 3 leaderboard:', error);
             }
         }
+
+        function openPostGameSurvey(action) {
+            pendingSurveyAction = action;
+            clearSurveyError();
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal'));
+            modal.show();
+        }
+
+        function clearSurveyError() {
+            const errorEl = document.getElementById('surveyError');
+            if (errorEl) {
+                errorEl.style.display = 'none';
+                errorEl.textContent = '';
+            }
+        }
+
+        function showSurveyError(message) {
+            const errorEl = document.getElementById('surveyError');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function getSurveyResponses() {
+            const readValue = (name) => {
+                const selected = document.querySelector(`input[name="${name}"]:checked`);
+                return selected ? parseInt(selected.value, 10) : null;
+            };
+
+            return {
+                frustrationStressAnnoyed: readValue('surveyFrustration'),
+                timePressure: readValue('surveyTimePressure'),
+                mentalEffort: readValue('surveyMentalEffort'),
+                success: readValue('surveySuccess')
+            };
+        }
+
+        document.getElementById('submitSurveyBtn').addEventListener('click', async function() {
+            clearSurveyError();
+
+            if (!currentSavedGameId) {
+                showSurveyError('Please wait for the game to save before continuing.');
+                return;
+            }
+
+            const surveyResponses = getSurveyResponses();
+            if (Object.values(surveyResponses).some(value => value == null)) {
+                showSurveyError('Please answer all four questions before continuing.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/GameData/survey', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gameId: currentSavedGameId,
+                        surveyResponses: surveyResponses
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    showSurveyError(data.error || 'Could not save survey answers.');
+                    return;
+                }
+
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal')).hide();
+
+                if (pendingSurveyAction === 'replay') {
+                    gameState.arrowsStuck = 0;
+                    startGame();
+                }
+            } catch (error) {
+                showSurveyError(error.message || 'Could not save survey answers.');
+            }
+        });
 
        // Save game data
 async function saveGameData(completed) {
@@ -762,6 +942,7 @@ async function saveGameData(completed) {
         
         if (data.success) {
             console.log('✅ Game data saved successfully! ID:', data.id);
+                    currentSavedGameId = data.id;
             fetchSection3Leaderboard();
             if (gameState.arrowsStuck > gameState.bestScore) {
                 gameState.bestScore = gameState.arrowsStuck;

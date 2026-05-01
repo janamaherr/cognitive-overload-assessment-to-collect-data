@@ -30,27 +30,27 @@ namespace CognitiveOverloadLMS.Controllers
                 }
 
                 if (string.IsNullOrWhiteSpace(request.FirstName) ||
-                    string.IsNullOrWhiteSpace(request.LastName) ||
                     request.Age <= 0 ||
-                    string.IsNullOrWhiteSpace(request.Major) ||
-                    string.IsNullOrWhiteSpace(request.PhoneNumber) ||
-                    string.IsNullOrWhiteSpace(request.Email))
+                    string.IsNullOrWhiteSpace(request.Major))
                 {
-                    return BadRequest(new { success = false, error = "All participant fields are required." });
+                    return BadRequest(new { success = false, error = "First name, age, and major are required." });
                 }
 
                 var normalizedFirstName = request.FirstName.Trim();
-                var normalizedLastName = request.LastName.Trim();
+                var normalizedLastName = string.IsNullOrWhiteSpace(request.LastName) ? string.Empty : request.LastName.Trim();
+                var userName = string.IsNullOrWhiteSpace(normalizedLastName)
+                    ? normalizedFirstName
+                    : $"{normalizedFirstName} {normalizedLastName}";
 
                 var session = new UserSession
                 {
-                    UserName = $"{normalizedFirstName} {normalizedLastName}",
+                    UserName = userName,
                     FirstName = normalizedFirstName,
                     LastName = normalizedLastName,
                     Age = request.Age,
                     Major = request.Major.Trim(),
-                    PhoneNumber = request.PhoneNumber.Trim(),
-                    Email = request.Email.Trim(),
+                    PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? string.Empty : request.PhoneNumber.Trim(),
+                    Email = string.IsNullOrWhiteSpace(request.Email) ? string.Empty : request.Email.Trim(),
                     IndexBehaviorData = request.IndexBehaviorData ?? new BehaviorData(),
                     StartTime = DateTime.UtcNow,
                     Games = new List<GameResult>()

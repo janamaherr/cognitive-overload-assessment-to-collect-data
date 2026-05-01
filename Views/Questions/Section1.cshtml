@@ -198,6 +198,8 @@
             <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">↩ Play Again</button>
             <button id="nextGameBtn" class="btn btn-game-primary btn-lg" style="display:none;">Next Game →</button>
         </div>
+
+        <div id="ml-result-box" style="display:none"></div>
     </div>
 </div>
 
@@ -206,7 +208,7 @@
         <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
             <div class="modal-header border-0" style="background:linear-gradient(90deg,#e94560,#f5a623);border-radius:1.25rem 1.25rem 0 0;">
                 <div>
-                    <h5 class="modal-title fw-800" id="postGameSurveyModalLabel">🎮 Quick Game Reflection</h5>
+                    <h5 class="modal-title fw-800" id="postGameSurveyModalLabel">Quick Game Reflection</h5>
                     <div style="font-size:0.82rem;opacity:0.85;">Answer a few quick questions before moving on.</div>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -322,6 +324,9 @@
             currentAttempts: 0,
             maxAttempts: 3 // Allow 3 attempts per game
         };
+        const sessionData = {
+            age: Number(sessionStorage.getItem('age') || 0)
+        };
         
         // Initialize behavior tracking
         const behaviorLogger = new BehaviorLogger(gameState.sessionId, gameState.sectionNumber);
@@ -403,6 +408,10 @@
             fetchLeaderboard();
         });
 
+        // Render the grid on initial page load so players see the squares
+        // (cells are inert until the player presses Start Game)
+        generateGrid();
+
         document.getElementById('clearLeaderboardBtn').addEventListener('click', async function() {
             if (!confirm('Clear all leaderboard entries?')) return;
             await fetch('/api/GameData/leaderboard/section1', { method: 'DELETE' });
@@ -429,6 +438,11 @@
             seconds = 0;
             currentSavedGameId = null;
             pendingSurveyAction = null;
+
+            document.querySelectorAll('#postGameSurveyModal input[type="radio"]').forEach(input => {
+                input.checked = false;
+            });
+            clearSurveyError();
 
             document.getElementById('startGameBtn').style.display = 'none';
             document.getElementById('nextGameBtn').style.display = 'none';
@@ -740,6 +754,53 @@
                 console.error('Error fetching leaderboard:', error);
             }
         }
+
+        async function sendMLPrediction(gameData, behaviorData, headData) {
+            const payload = {
+                gameId: gameData.gameId ?? null,
+                sessionId: gameData.sessionId ?? gameState.sessionId,
+                mouseMovementsCount: behaviorData.mouseMovementsCount ?? 0,
+                averageMouseSpeed: behaviorData.averageMouseSpeed ?? 0,
+                typingEventsCount: behaviorData.typingEventsCount ?? 0,
+                averageTypingSpeed: behaviorData.averageTypingSpeed ?? 0,
+                hesitationPausesCount: behaviorData.hesitationPausesCount ?? 0,
+                averageHeadMovement: headData.averageHeadMovement ?? 0,
+                lookAwayCount: headData.lookAwayCount ?? 0,
+                headTiltCount: headData.headTiltCount ?? 0,
+                totalTimeSeconds: gameData.totalTimeSeconds ?? 0,
+                heartRate: gameData.heartRate ?? null,
+                heartRatebefore: gameData.heartRateBefore ?? null,
+                heartRateDifference: gameData.heartRateDifference ?? null,
+                age: sessionData.age ?? 0,
+                gameType: gameData.gameTypeEncoded ?? 0,
+                sectionNumber: gameData.sectionNumber ?? 1,
+                score: gameData.score ?? 0,
+                completed: gameData.completed ? 1 : 0
+            };
+
+            try {
+                const response = await fetch('/api/GameData/ml-predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log('ML Result:', result);
+
+                showMLResult(result);
+            } catch (err) {
+                console.error('ML prediction failed:', err);
+            }
+        }
+
+        function showMLResult(result) {
+            const box = document.getElementById('ml-result-box');
+            if (box) {
+                box.innerHTML = '';
+                box.style.display = 'none';
+            }
+        }
         
         async function saveGameData(completed) {
             // Stop tracking
@@ -789,7 +850,8 @@
                     averageHeadMovement: headData.averageHeadMovement || 0,
                     lookAwayCount: headData.lookAwayCount || 0,
                     headTiltCount: headData.tiltCount || 0,
-                    heartRate: 0
+                    heartRate: null,
+                    heartRatebefore: null
                 },
                 gameData: {
                     gridSize: gameState.gridSize,
@@ -816,6 +878,32 @@
                 if (data.success) {
                     console.log("Game data saved successfully!");
                     currentSavedGameId = data.id;
+                    await sendMLPrediction(
+                        {
+                            gameId: data.id,
+                            sessionId: gameResult.sessionId,
+                            totalTimeSeconds: gameResult.totalTimeSeconds,
+                            heartRate: gameResult.behaviorData.heartRate,
+                            heartRateBefore: gameResult.behaviorData.heartRatebefore,
+                            heartRateDifference: gameResult.behaviorData.heartRateDifference,
+                            gameTypeEncoded: 1,
+                            sectionNumber: gameResult.sectionNumber,
+                            score: gameResult.score,
+                            completed: gameResult.completed
+                        },
+                        {
+                            mouseMovementsCount: (gameResult.behaviorData.mouseMovements || []).length,
+                            averageMouseSpeed: gameResult.behaviorData.averageMouseSpeed,
+                            typingEventsCount: (gameResult.behaviorData.typingEvents || []).length,
+                            averageTypingSpeed: gameResult.behaviorData.averageTypingSpeed,
+                            hesitationPausesCount: (gameResult.behaviorData.hesitationPauses || []).length
+                        },
+                        {
+                            averageHeadMovement: gameResult.behaviorData.averageHeadMovement,
+                            lookAwayCount: gameResult.behaviorData.lookAwayCount,
+                            headTiltCount: gameResult.behaviorData.headTiltCount
+                        }
+                    );
                     if (completed) {
                         fetchLeaderboard();
                     }

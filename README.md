@@ -54,6 +54,85 @@ Head tracking uses **TensorFlow.js** and **BlazeFace** running entirely in the b
 
 ---
 
+## ML Integration
+
+Each finished game also runs through a machine learning prediction flow so the session can be analyzed with both the raw telemetry and the model output.
+
+### Prediction Flow
+
+1. The game view saves the completed result to `/api/GameData/save`.
+2. The browser then posts a compact feature payload to `/api/GameData/ml-predict`.
+3. `GameDataController` forwards the same JSON to the Python ML service at `http://localhost:8000/predict`.
+4. The backend reads the ML response and extracts:
+   - `prediction` - binary class output
+   - `probability` - model confidence
+   - `label` - human-readable class label
+   - `breakdown` - component scores for behavioral, physiological, and contextual signals
+5. The prediction is written back into MongoDB in three places:
+   - `GameResults` / `GameResults_Section1` / `GameResults_Section2` / `GameResults_Section3` via `mlPrediction`
+   - `UserSessions.Games[].mlPrediction`
+   - `MLPredictions` as a full request/response log
+
+### ML Request Payload
+
+The frontend sends a flattened JSON payload with the features the model expects:
+
+- `gameId`
+- `sessionId`
+- `mouseMovementsCount`
+- `averageMouseSpeed`
+- `typingEventsCount`
+- `averageTypingSpeed`
+- `hesitationPausesCount`
+- `averageHeadMovement`
+- `lookAwayCount`
+- `headTiltCount`
+- `totalTimeSeconds`
+- `heartRate`
+- `heartRatebefore`
+- `heartRateDifference`
+- `age`
+- `gameType`
+- `sectionNumber`
+- `score`
+- `completed`
+
+### ML Response Shape
+
+The backend expects the Python service to return JSON like this:
+
+```json
+{
+  "prediction": 1,
+  "probability": 0.84,
+  "label": "Overloaded",
+  "breakdown": {
+    "behavioral": 0.62,
+    "physiological": 0.71,
+    "contextual": 0.43
+  }
+}
+```
+
+### Stored ML Data
+
+The prediction log collection stores the original request, the raw response, and the parsed model fields for auditing and debugging.
+
+| Field | Stored In |
+|---|---|
+| Prediction, probability, label, breakdown | `GameResult.MLPrediction` and `UserSession.Games[].MLPrediction` |
+| Full request payload | `MLPredictions.requestPayload` |
+| Full response payload | `MLPredictions.responsePayload` |
+| Session, section, game type, score, completion flag | `MLPredictions` |
+
+### Notes
+
+- Heart-rate fields are nullable so games can be saved even when no wearable signal is available.
+- The on-screen ML result box is hidden from players; predictions are stored for analysis instead of being shown during play.
+- The frontend includes timeout handling so a slow ML service does not block the game flow.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -63,6 +142,7 @@ Head tracking uses **TensorFlow.js** and **BlazeFace** running entirely in the b
 | Database | MongoDB Atlas |
 | Head Tracking | TensorFlow.js 3.21.0 + BlazeFace 0.0.7 |
 | Behavior Logging | Custom `BehaviorLogger`, `MouseSpeedTracker`, `HeadTracker` JS classes |
+| ML Inference | Python service at `http://localhost:8000/predict` |
 
 ---
 
@@ -70,7 +150,7 @@ Head tracking uses **TensorFlow.js** and **BlazeFace** running entirely in the b
 
 ```
 Controllers/
-  GameDataController.cs     — API endpoints for saving results & leaderboards
+  GameDataController.cs     — API endpoints for saving results, surveys, leaderboards, and ML predictions
   HomeController.cs
   QuestionController.cs
 
@@ -78,6 +158,7 @@ Models/
   GameResult.cs             — Top-level result document saved to MongoDB
   GameSpecificData.cs       — Per-section game metadata (sparse/nullable fields)
   BehaviorData.cs           — Behavioral signal container
+  MLPredictionLog.cs        — Audit log for every ML request/response
   UserSession.cs
 
 Services/
@@ -105,6 +186,7 @@ wwwroot/js/
 | `GameResults_Section2` | Section 2 results only |
 | `GameResults_Section3` | Section 3 results only |
 | `UserSessions` | Player session records (name, session ID) |
+| `MLPredictions` | ML request/response logs and parsed prediction results |
 
 ---
 

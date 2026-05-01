@@ -32,13 +32,16 @@ namespace CognitiveOverloadLMS.Models
         public int HeadTiltCount { get; set; }
         
         [BsonElement("heartRate")]
-        public double HeartRate { get; set; }
+        [BsonIgnoreIfNull]
+        public double? HeartRate { get; set; }
 
         [BsonElement("heartRateDifference")]
+        [BsonIgnoreIfNull]
         public double? HeartRateDifference { get; set; }
 
         [BsonElement("heartRatebefore")]
-        public int InitialHeartRate { get; set; }
+        [BsonIgnoreIfNull]
+        public int? InitialHeartRate { get; set; }
     }
     
     public class MouseMovement

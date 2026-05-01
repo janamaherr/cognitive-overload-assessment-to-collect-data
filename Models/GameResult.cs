@@ -50,14 +50,19 @@ namespace CognitiveOverloadLMS.Models
         [BsonIgnoreIfNull]
         public PostGameSurvey? PostGameSurvey { get; set; }
 
+        [BsonElement("surveyOverloaded")]
+        public bool SurveyOverloaded { get; set; }
+
         [BsonElement("overloadScore")]
         public double OverloadScore { get; set; }
 
         [BsonElement("overloaded")]
         public bool Overloaded { get; set; }
 
-        [BsonElement("surveyOverloaded")]
-        public bool SurveyOverloaded { get; set; }
+        [BsonElement("mlPrediction")]
+        [BsonIgnoreIfNull]
+        public GameMLPrediction? MLPrediction { get; set; }
+
     }
 
     public class WordTelemetry
@@ -139,6 +144,34 @@ namespace CognitiveOverloadLMS.Models
 
         [BsonElement("success")]
         public int Success { get; set; }
+    }
+
+    public class GameMLPrediction
+    {
+        [BsonElement("prediction")]
+        public int Prediction { get; set; }
+
+        [BsonElement("probability")]
+        public double Probability { get; set; }
+
+        [BsonElement("label")]
+        public string Label { get; set; } = string.Empty;
+
+        [BsonElement("breakdown")]
+        [BsonIgnoreIfNull]
+        public GameMLPredictionBreakdown? Breakdown { get; set; }
+    }
+
+    public class GameMLPredictionBreakdown
+    {
+        [BsonElement("behavioral")]
+        public double Behavioral { get; set; }
+
+        [BsonElement("physiological")]
+        public double Physiological { get; set; }
+
+        [BsonElement("contextual")]
+        public double Contextual { get; set; }
     }
 
     public class WordHeadSample

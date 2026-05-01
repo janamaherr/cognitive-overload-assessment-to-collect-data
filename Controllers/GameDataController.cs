@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using CognitiveOverloadLMS.Models;
 using CognitiveOverloadLMS.Services;
 using MongoDB.Driver;
+using MongoDB.Bson;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text;
+using System.Text.Json;
 
 namespace CognitiveOverloadLMS.Controllers
 {
@@ -16,6 +19,7 @@ namespace CognitiveOverloadLMS.Controllers
         private readonly IMongoCollection<GameResult> _section2Results;
         private readonly IMongoCollection<GameResult> _section3Results;
         private readonly IMongoCollection<UserSession> _userSessions;
+        private readonly IMongoCollection<MLPredictionLog> _mlPredictionLogs;
         private readonly ILogger<GameDataController> _logger;
 
         public GameDataController(MongoDBService mongoDBService, ILogger<GameDataController> logger)
@@ -25,6 +29,7 @@ namespace CognitiveOverloadLMS.Controllers
             _section2Results = mongoDBService.GetCollection<GameResult>("GameResults_Section2");
             _section3Results = mongoDBService.GetCollection<GameResult>("GameResults_Section3");
             _userSessions = mongoDBService.GetCollection<UserSession>("UserSessions");
+            _mlPredictionLogs = mongoDBService.GetCollection<MLPredictionLog>("MLPredictions");
             _logger = logger;
         }
 
@@ -1186,7 +1191,7 @@ namespace CognitiveOverloadLMS.Controllers
                 return behavior.HeartRateDifference.Value;
             }
 
-            return behavior.HeartRate - behavior.InitialHeartRate;
+            return (behavior.HeartRate ?? 0) - (behavior.InitialHeartRate ?? 0);
         }
 
         private async Task<HeartRateBackfillResult> BackfillHeartRateDifferencesAsync(List<UserSession> sessions)
@@ -1312,7 +1317,9 @@ namespace CognitiveOverloadLMS.Controllers
                 .Set(g => g.BehaviorData, game.BehaviorData)
                 .Set(g => g.GameData, game.GameData)
                 .Set(g => g.Words, game.Words)
-                .Set(g => g.Surveyavg, game.Surveyavg);
+                .Set(g => g.Surveyavg, game.Surveyavg)
+                .Set(g => g.PostGameSurvey, game.PostGameSurvey)
+                .Set(g => g.MLPrediction, game.MLPrediction);
         }
 
         private sealed class BaselineStats
@@ -1326,6 +1333,319 @@ namespace CognitiveOverloadLMS.Controllers
         {
             public string GameId { get; set; } = string.Empty;
             public PostGameSurvey? SurveyResponses { get; set; }
+        }
+[HttpPost("ml-predict")]
+public async Task<IActionResult> MLPredict([FromBody] JsonElement body)
+{
+    try
+    {
+        using var requestDocument = JsonDocument.Parse(body.GetRawText());
+        var requestRoot = requestDocument.RootElement;
+        string result;
+        var mlCallSucceeded = false;
+
+        try
+        {
+            using var client = new HttpClient();
+            var content = new StringContent(
+                body.GetRawText(),  // send as-is, no snake_case transform
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await client.PostAsync("http://localhost:8000/predict", content);
+            var rawResult = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                result = JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "ML service request failed",
+                    statusCode = (int)response.StatusCode,
+                    details = rawResult
+                });
+            }
+            else
+            {
+                result = rawResult;
+                mlCallSucceeded = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            result = JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = "ML service unavailable",
+                details = ex.Message
+            });
+        }
+
+        // Parse ML response
+        GameMLPrediction? gamePrediction = null;
+        MLPredictionBreakdown? breakdown = null;
+        GameMLPredictionBreakdown? gameBreakdown = null;
+
+        if (TryParseJson(result, out var responseDocument))
+        {
+            var responseRoot = responseDocument.RootElement;
+            if (responseRoot.TryGetProperty("breakdown", out var breakdownRoot) && breakdownRoot.ValueKind == JsonValueKind.Object)
+            {
+                breakdown = new MLPredictionBreakdown
+                {
+                    Behavioral    = TryGetDouble(breakdownRoot, "behavioral"),
+                    Physiological = TryGetDouble(breakdownRoot, "physiological"),
+                    Contextual    = TryGetDouble(breakdownRoot, "contextual")
+                };
+
+                gameBreakdown = new GameMLPredictionBreakdown
+                {
+                    Behavioral    = breakdown.Behavioral,
+                    Physiological = breakdown.Physiological,
+                    Contextual    = breakdown.Contextual
+                };
+            }
+
+            gamePrediction = new GameMLPrediction
+            {
+                Prediction  = TryGetInt(responseRoot, "prediction"),
+                Probability = TryGetDouble(responseRoot, "probability"),
+                Label       = TryGetString(responseRoot, "label") ?? string.Empty,
+                Breakdown   = gameBreakdown
+            };
+        }
+
+        // Log to MLPredictions collection
+        var log = new MLPredictionLog
+        {
+            SessionId      = TryGetString(requestRoot, "sessionId"),
+            SectionNumber  = TryGetInt(requestRoot, "sectionNumber"),
+            GameType       = TryGetInt(requestRoot, "gameType"),
+            Score          = TryGetInt(requestRoot, "score"),
+            Completed      = TryGetInt(requestRoot, "completed"),
+            Prediction     = gamePrediction?.Prediction ?? 0,
+            Probability    = gamePrediction?.Probability ?? 0,
+            Label          = gamePrediction?.Label ?? (mlCallSucceeded ? string.Empty : "PredictionUnavailable"),
+            Breakdown      = breakdown,
+            RequestPayload = BsonDocument.Parse(body.GetRawText()),
+            ResponsePayload = SafeParseBson(result),
+            CreatedAtUtc   = DateTime.UtcNow
+        };
+
+        await _mlPredictionLogs.InsertOneAsync(log);
+
+        // Save prediction back to the game result in MongoDB
+        var gameId = TryGetString(requestRoot, "gameId");
+        var targetGame = await ResolveTargetGameForPredictionAsync(requestRoot, gameId);
+
+        if (targetGame != null && gamePrediction != null)
+        {
+            var gameFilter = BuildGameMatchFilter(targetGame);
+
+            await _gameResults.UpdateOneAsync(gameFilter,
+                Builders<GameResult>.Update.Set(g => g.MLPrediction, gamePrediction));
+
+            var sectionCollection = GetSectionCollection(targetGame.SectionNumber);
+            if (sectionCollection != null)
+            {
+                await sectionCollection.UpdateOneAsync(gameFilter,
+                    Builders<GameResult>.Update.Set(g => g.MLPrediction, gamePrediction));
+            }
+
+            // Update UserSession too
+            var session = await _userSessions.Find(s => s.Id == targetGame.SessionId).FirstOrDefaultAsync();
+            if (session?.Games != null)
+            {
+                var index = session.Games.FindIndex(existing => IsSameGame(existing, targetGame));
+                if (index >= 0)
+                {
+                    session.Games[index].MLPrediction = gamePrediction;
+                    await _userSessions.UpdateOneAsync(
+                        s => s.Id == session.Id,
+                        Builders<UserSession>.Update.Set(s => s.Games, session.Games));
+                }
+            }
+        }
+
+        if (!mlCallSucceeded)
+            return StatusCode(503, result);
+
+        return Content(result, "application/json");
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error in ML prediction endpoint");
+        return BadRequest(new { success = false, error = ex.Message });
+    }
+}
+
+        private static bool TryParseJson(string json, out JsonDocument document)
+        {
+            try
+            {
+                document = JsonDocument.Parse(json);
+                return true;
+            }
+            catch
+            {
+                document = default!;
+                return false;
+            }
+        }
+
+        private static BsonDocument SafeParseBson(string payload)
+        {
+            try
+            {
+                return BsonDocument.Parse(payload);
+            }
+            catch
+            {
+                return new BsonDocument { ["raw"] = payload };
+            }
+        }
+
+        private static int TryGetInt(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value))
+            {
+                return 0;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            {
+                return number;
+            }
+
+            if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var parsed))
+            {
+                return parsed;
+            }
+
+            return 0;
+        }
+
+        private static double TryGetDouble(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value))
+            {
+                return 0;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number))
+            {
+                return number;
+            }
+
+            if (value.ValueKind == JsonValueKind.String && double.TryParse(value.GetString(), out var parsed))
+            {
+                return parsed;
+            }
+
+            return 0;
+        }
+
+        private static string? TryGetString(JsonElement element, string property)
+        {
+            if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            return value.GetString();
+        }
+
+        private async Task<GameResult?> ResolveTargetGameForPredictionAsync(JsonElement requestRoot, string? gameId)
+        {
+            if (!string.IsNullOrWhiteSpace(gameId))
+            {
+                var byId = await _gameResults.Find(Builders<GameResult>.Filter.Eq(g => g.Id, gameId)).FirstOrDefaultAsync();
+                if (byId != null)
+                {
+                    return byId;
+                }
+            }
+
+            var sessionId = TryGetString(requestRoot, "sessionId");
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return null;
+            }
+
+            var sectionNumber = TryGetInt(requestRoot, "sectionNumber");
+            var score = TryGetInt(requestRoot, "score");
+            var completed = TryGetInt(requestRoot, "completed") == 1;
+
+            var filter = Builders<GameResult>.Filter.And(
+                Builders<GameResult>.Filter.Eq(g => g.SessionId, sessionId),
+                Builders<GameResult>.Filter.Eq(g => g.SectionNumber, sectionNumber),
+                Builders<GameResult>.Filter.Eq(g => g.Score, score),
+                Builders<GameResult>.Filter.Eq(g => g.Completed, completed));
+
+            var bySessionAndSection = await _gameResults
+                .Find(filter)
+                .SortByDescending(g => g.EndTime)
+                .FirstOrDefaultAsync();
+
+            if (bySessionAndSection != null)
+            {
+                return bySessionAndSection;
+            }
+
+            return await _gameResults
+                .Find(g => g.SessionId == sessionId && g.SectionNumber == sectionNumber)
+                .SortByDescending(g => g.EndTime)
+                .FirstOrDefaultAsync();
+        }
+
+        private string TransformPayloadToSnakeCase(JsonElement body)
+        {
+            using var document = JsonDocument.Parse(body.GetRawText());
+            var root = document.RootElement;
+
+            var snakeCaseDict = new Dictionary<string, object?>();
+
+            foreach (var property in root.EnumerateObject())
+            {
+                var snakeCaseKey = ToSnakeCase(property.Name);
+
+                // Parse value, preserving nulls
+                var value = property.Value.ValueKind switch
+                {
+                    JsonValueKind.Null => null,
+                    JsonValueKind.Number => property.Value.TryGetDouble(out var d) ? (object)d : property.Value.GetDouble(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.String => property.Value.GetString(),
+                    _ => property.Value.ToString()
+                };
+
+                snakeCaseDict[snakeCaseKey] = value;
+            }
+
+            return JsonSerializer.Serialize(snakeCaseDict);
+        }
+
+        private string ToSnakeCase(string camelCase)
+        {
+            var sb = new StringBuilder();
+            foreach (var c in camelCase)
+            {
+                if (char.IsUpper(c))
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append('_');
+                    }
+                    sb.Append(char.ToLowerInvariant(c));
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            return sb.ToString();
         }
     }
 }

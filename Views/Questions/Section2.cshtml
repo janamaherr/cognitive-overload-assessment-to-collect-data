@@ -314,6 +314,8 @@
                 <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">↩ Play Again</button>
                 <button id="nextGameBtn" class="btn btn-game-next btn-lg" style="display:none;">Next Game →</button>
             </div>
+
+            <div id="ml-result-box" style="display:none"></div>
         </div>
     </div>
 </div>
@@ -511,6 +513,9 @@
             currentSentence: null,
             sentencesCompleted: [],
             sentenceCurrentlyVisible: false
+        };
+        const sessionData = {
+            age: Number(sessionStorage.getItem('age') || 0)
         };
 
         // Initialize tracking
@@ -1079,7 +1084,8 @@
                     averageHeadMovement: headData.averageHeadMovement || 0,
                     lookAwayCount: headData.lookAwayCount || 0,
                     headTiltCount: headData.tiltCount || 0,
-                    heartRatebefore: 0
+                    heartRate: null,
+                    heartRatebefore: null
                 },
                 
                 gameData: {
@@ -1104,12 +1110,85 @@
                 if (data.success) {
                     showGlobalFeedback('Game saved!', true);
                     currentSavedGameId = data.id;
+                    await sendMLPrediction(
+                        {
+                            gameId: data.id,
+                            sessionId: gameResult.sessionId,
+                            totalTimeSeconds: gameResult.totalTimeSeconds,
+                            heartRate: gameResult.behaviorData.heartRate,
+                            heartRateBefore: gameResult.behaviorData.heartRatebefore,
+                            heartRateDifference: gameResult.behaviorData.heartRateDifference,
+                            gameTypeEncoded: 2,
+                            sectionNumber: gameResult.sectionNumber,
+                            score: gameResult.score,
+                            completed: gameResult.completed
+                        },
+                        {
+                            mouseMovementsCount: (gameResult.behaviorData.mouseMovements || []).length,
+                            averageMouseSpeed: gameResult.behaviorData.averageMouseSpeed,
+                            typingEventsCount: (gameResult.behaviorData.typingEvents || []).length,
+                            averageTypingSpeed: gameResult.behaviorData.averageTypingSpeed,
+                            hesitationPausesCount: (gameResult.behaviorData.hesitationPauses || []).length
+                        },
+                        {
+                            averageHeadMovement: gameResult.behaviorData.averageHeadMovement,
+                            lookAwayCount: gameResult.behaviorData.lookAwayCount,
+                            headTiltCount: gameResult.behaviorData.headTiltCount
+                        }
+                    );
                     fetchSection2Leaderboard();
                 } else {
                     console.error("Save failed:", data.error);
                 }
             } catch (error) {
                 console.error("Error saving:", error);
+            }
+        }
+
+        async function sendMLPrediction(gameData, behaviorData, headData) {
+            const payload = {
+                gameId: gameData.gameId ?? null,
+                sessionId: gameData.sessionId ?? gameState.sessionId,
+                mouseMovementsCount: behaviorData.mouseMovementsCount ?? 0,
+                averageMouseSpeed: behaviorData.averageMouseSpeed ?? 0,
+                typingEventsCount: behaviorData.typingEventsCount ?? 0,
+                averageTypingSpeed: behaviorData.averageTypingSpeed ?? 0,
+                hesitationPausesCount: behaviorData.hesitationPausesCount ?? 0,
+                averageHeadMovement: headData.averageHeadMovement ?? 0,
+                lookAwayCount: headData.lookAwayCount ?? 0,
+                headTiltCount: headData.headTiltCount ?? 0,
+                totalTimeSeconds: gameData.totalTimeSeconds ?? 0,
+                heartRate: gameData.heartRate ?? null,
+                heartRatebefore: gameData.heartRateBefore ?? null,
+                heartRateDifference: gameData.heartRateDifference ?? null,
+                age: sessionData.age ?? 0,
+                gameType: gameData.gameTypeEncoded ?? 0,
+                sectionNumber: gameData.sectionNumber ?? 1,
+                score: gameData.score ?? 0,
+                completed: gameData.completed ? 1 : 0
+            };
+
+            try {
+                const response = await fetch('/api/GameData/ml-predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log('ML Result:', result);
+
+                showMLResult(result);
+            } catch (err) {
+                console.error('ML prediction failed:', err);
+            }
+        }
+
+        function showMLResult(result) {
+            const box = document.getElementById('ml-result-box');
+            if (box) {
+                box.innerHTML = '';
+                box.style.display = 'none';
             }
         }
 

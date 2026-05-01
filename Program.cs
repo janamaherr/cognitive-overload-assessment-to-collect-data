@@ -22,6 +22,8 @@ builder.Services.AddScoped<IMongoCollection<CognitiveOverloadLMS.Models.GameResu
     return mongoService.GetCollection<CognitiveOverloadLMS.Models.GameResult>("GameResults");
 });
 
+builder.Services.AddHttpClient();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -36,6 +38,8 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthorization();
 
+app.MapControllers();
+
 // Configure routes
 app.MapControllerRoute(
     name: "default",
@@ -46,7 +50,5 @@ app.MapControllerRoute(
     name: "questions",
     pattern: "Questions/{action=Section1}/{id?}",
     defaults: new { controller = "Questions" });
-
-builder.Services.AddHttpClient();
 
 app.Run();

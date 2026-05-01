@@ -197,8 +197,10 @@
         <div class="d-flex justify-content-center gap-3 flex-wrap mb-3">
             <button id="startGameBtn" class="btn btn-game-success btn-lg">▶ Start Game</button>
             <button id="shootBtn" class="btn btn-game-primary btn-lg" disabled>🎯 Shoot (Space)</button>
-            <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">↩ Play Again</button>
+            <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">Play Again</button>
         </div>
+
+        <div id="ml-result-box" style="display:none"></div>
 
         <!-- Head Tracking Toggle -->
         <div class="head-tracking-toggle d-flex align-items-center gap-2">
@@ -269,7 +271,7 @@
             </div>
             <div class="modal-footer border-0 pt-0 pb-4 px-4 justify-content-between">
                 <button type="button" class="btn btn-game-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="submitSurveyBtn" class="btn btn-game-primary">Save & Replay</button>
+                <button type="button" id="submitSurveyBtn" class="btn btn-game-primary">Save Survey</button>
             </div>
         </div>
     </div>
@@ -329,6 +331,9 @@
             arrowsShot: 0,
             failedAttempts: 0,
             arrowThrows: []
+        };
+        const sessionData = {
+            age: Number(sessionStorage.getItem('age') || 0)
         };
 
         // Canvas setup
@@ -710,12 +715,13 @@
         }
 
         // End game
-        function endGame(completed) {
+        async function endGame(completed) {
             gameState.endTime = new Date().toISOString();
             document.getElementById('shootBtn').disabled = true;
-            document.getElementById('playAgainBtn').style.display = 'inline-block';
+            document.getElementById('playAgainBtn').style.display = 'none';
 
-            saveGameData(completed);
+            await saveGameData(completed);
+            openPostGameSurvey('replay');
         }
 
         // Show feedback
@@ -732,7 +738,7 @@
 
         // Play again
         function playAgain() {
-            openPostGameSurvey('replay');
+            startGame();
         }
 
         function renderSection3Leaderboard() {
@@ -843,9 +849,10 @@
 
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal')).hide();
 
-                if (pendingSurveyAction === 'replay') {
-                    gameState.arrowsStuck = 0;
-                    startGame();
+                const playAgainBtn = document.getElementById('playAgainBtn');
+                if (playAgainBtn) {
+                    playAgainBtn.textContent = 'Play Again';
+                    playAgainBtn.style.display = 'inline-block';
                 }
             } catch (error) {
                 showSurveyError(error.message || 'Could not save survey answers.');
@@ -912,7 +919,8 @@ async function saveGameData(completed) {
                 averageHeadMovement: headData.averageHeadMovement || 0,
                 lookAwayCount: headData.lookAwayCount || 0,
                 headTiltCount: headData.tiltCount || 0,
-                heartRate: 0
+                    heartRate: null,
+                    heartRatebefore: null
             },
             
             gameData: {
@@ -943,6 +951,32 @@ async function saveGameData(completed) {
         if (data.success) {
             console.log('✅ Game data saved successfully! ID:', data.id);
                     currentSavedGameId = data.id;
+            await sendMLPrediction(
+                {
+                    gameId: data.id,
+                    sessionId: gameResult.sessionId,
+                    totalTimeSeconds: gameResult.totalTimeSeconds,
+                    heartRate: gameResult.behaviorData.heartRate,
+                    heartRateBefore: gameResult.behaviorData.heartRatebefore,
+                    heartRateDifference: gameResult.behaviorData.heartRateDifference,
+                    gameTypeEncoded: 3,
+                    sectionNumber: gameResult.sectionNumber,
+                    score: gameResult.score,
+                    completed: gameResult.completed
+                },
+                {
+                    mouseMovementsCount: (gameResult.behaviorData.mouseMovements || []).length,
+                    averageMouseSpeed: gameResult.behaviorData.averageMouseSpeed,
+                    typingEventsCount: (gameResult.behaviorData.typingEvents || []).length,
+                    averageTypingSpeed: gameResult.behaviorData.averageTypingSpeed,
+                    hesitationPausesCount: (gameResult.behaviorData.hesitationPauses || []).length
+                },
+                {
+                    averageHeadMovement: gameResult.behaviorData.averageHeadMovement,
+                    lookAwayCount: gameResult.behaviorData.lookAwayCount,
+                    headTiltCount: gameResult.behaviorData.headTiltCount
+                }
+            );
             fetchSection3Leaderboard();
             if (gameState.arrowsStuck > gameState.bestScore) {
                 gameState.bestScore = gameState.arrowsStuck;
@@ -960,6 +994,53 @@ async function saveGameData(completed) {
         console.error('Error details:', error.message);
     }
 }
+
+        async function sendMLPrediction(gameData, behaviorData, headData) {
+            const payload = {
+                gameId: gameData.gameId ?? null,
+                sessionId: gameData.sessionId ?? gameState.sessionId,
+                mouseMovementsCount: behaviorData.mouseMovementsCount ?? 0,
+                averageMouseSpeed: behaviorData.averageMouseSpeed ?? 0,
+                typingEventsCount: behaviorData.typingEventsCount ?? 0,
+                averageTypingSpeed: behaviorData.averageTypingSpeed ?? 0,
+                hesitationPausesCount: behaviorData.hesitationPausesCount ?? 0,
+                averageHeadMovement: headData.averageHeadMovement ?? 0,
+                lookAwayCount: headData.lookAwayCount ?? 0,
+                headTiltCount: headData.headTiltCount ?? 0,
+                totalTimeSeconds: gameData.totalTimeSeconds ?? 0,
+                heartRate: gameData.heartRate ?? null,
+                heartRatebefore: gameData.heartRateBefore ?? null,
+                heartRateDifference: gameData.heartRateDifference ?? null,
+                age: sessionData.age ?? 0,
+                gameType: gameData.gameTypeEncoded ?? 0,
+                sectionNumber: gameData.sectionNumber ?? 1,
+                score: gameData.score ?? 0,
+                completed: gameData.completed ? 1 : 0
+            };
+
+            try {
+                const response = await fetch('/api/GameData/ml-predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log('ML Result:', result);
+
+                showMLResult(result);
+            } catch (err) {
+                console.error('ML prediction failed:', err);
+            }
+        }
+
+        function showMLResult(result) {
+            const box = document.getElementById('ml-result-box');
+            if (box) {
+                box.innerHTML = '';
+                box.style.display = 'none';
+            }
+        }
 
         // Event listeners
         document.getElementById('startGameBtn').addEventListener('click', async function() {

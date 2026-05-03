@@ -1,0 +1,351 @@
+@{
+    ViewData["Title"] = "Researcher Panel";
+}
+
+<style>
+    body { 
+        background: #0f172a; 
+        min-height: 100vh; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .panel-card {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 1.5rem;
+        width: 100%;
+        max-width: 420px;
+        padding: 2rem;
+        color: white;
+    }
+
+    .panel-title {
+        font-size: 1.4rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #fff, #b5c6ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.25rem;
+    }
+
+    .session-display {
+        background: rgba(108,99,255,0.15);
+        border: 1px solid rgba(108,99,255,0.3);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.7);
+        margin-bottom: 1.5rem;
+        word-break: break-all;
+    }
+
+    .hr-input-group {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .hr-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: rgba(255,255,255,0.5);
+        margin-bottom: 0.5rem;
+    }
+
+    .hr-input {
+        background: rgba(255,255,255,0.08);
+        border: 2px solid rgba(255,255,255,0.15);
+        border-radius: 0.75rem;
+        color: white;
+        font-size: 2rem;
+        font-weight: 800;
+        text-align: center;
+        width: 100%;
+        padding: 0.5rem;
+    }
+
+    .hr-input:focus {
+        border-color: #6c63ff;
+        outline: none;
+        background: rgba(108,99,255,0.15);
+    }
+
+    .hr-input::placeholder { 
+        color: rgba(255,255,255,0.2); 
+        font-size: 1.2rem;
+    }
+
+    .btn-save-hr {
+        background: linear-gradient(90deg, #6c63ff, #48c6ef);
+        border: none;
+        color: white;
+        font-weight: 700;
+        font-size: 1rem;
+        padding: 0.75rem;
+        border-radius: 50px;
+        width: 100%;
+        transition: transform 0.15s;
+    }
+
+    .btn-save-hr:hover { transform: translateY(-2px); color: white; }
+    .btn-save-hr:disabled { opacity: 0.4; transform: none; }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.3rem 0.8rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .status-success { background: rgba(56,239,125,0.2); color: #38ef7d; }
+    .status-error   { background: rgba(233,69,96,0.2);  color: #e94560; }
+    .status-waiting { background: rgba(245,166,35,0.2); color: #f5a623; }
+
+    .game-status-bar {
+        background: rgba(255,255,255,0.04);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+
+    .section-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .section-tab {
+        flex: 1;
+        padding: 0.5rem;
+        border-radius: 50px;
+        border: 1px solid rgba(255,255,255,0.15);
+        background: transparent;
+        color: rgba(255,255,255,0.5);
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .section-tab.active {
+        background: linear-gradient(90deg, #6c63ff, #48c6ef);
+        border-color: transparent;
+        color: white;
+    }
+
+    .log-entry {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.4);
+        padding: 0.25rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+</style>
+
+<div style="min-height:100vh;background:#0f172a;display:flex;align-items:center;justify-content:center;padding:1rem;">
+    <div class="panel-card">
+        
+        <!-- Header -->
+        <div class="panel-title">🔬 Researcher Panel</div>
+        <div style="font-size:0.8rem;color:rgba(255,255,255,0.4);margin-bottom:1.5rem;">
+            Enter participant heart rate during gameplay
+        </div>
+
+        <!-- Session ID Input -->
+        <div class="hr-input-group">
+            <div class="hr-label">Participant Session ID</div>
+            <input type="text" id="sessionIdInput" class="hr-input" 
+                   style="font-size:0.85rem;text-align:left;"
+                   placeholder="Paste session ID here..." />
+            <button class="btn-save-hr mt-2" onclick="loadSession()">
+                Load Session
+            </button>
+        </div>
+
+        <!-- Session Info (shown after loading) -->
+        <div id="sessionInfo" style="display:none;">
+            
+            <div class="session-display">
+                👤 <span id="participantName">—</span> &nbsp;|&nbsp; 
+                Session: <span id="shortSessionId">—</span>
+            </div>
+
+            <!-- Section Selector -->
+            <div class="section-tabs">
+                <button class="section-tab active" onclick="selectSection(1, this)">S1</button>
+                <button class="section-tab" onclick="selectSection(2, this)">S2</button>
+                <button class="section-tab" onclick="selectSection(3, this)">S3</button>
+            </div>
+
+            <!-- Current Section Status -->
+            <div class="game-status-bar">
+                <span style="color:rgba(255,255,255,0.6);">Section <span id="currentSectionLabel">1</span></span>
+                <span id="statusBadge" class="status-badge status-waiting">Waiting for game</span>
+            </div>
+
+            <!-- Heart Rate Entry -->
+            <div class="hr-input-group">
+                <div class="hr-label">❤️ Resting HR (Before Game)</div>
+                <input type="number" id="hrBefore" class="hr-input" 
+                       placeholder="75" min="40" max="200" />
+            </div>
+
+            <div class="hr-input-group">
+                <div class="hr-label">❤️ Current HR (During/After Game)</div>
+                <input type="number" id="hrCurrent" class="hr-input" 
+                       placeholder="88" min="40" max="200" />
+                <div style="font-size:0.75rem;color:rgba(255,255,255,0.3);margin-top:0.5rem;text-align:center;">
+                    Difference: <span id="hrDiff" style="color:#f5a623;font-weight:700;">—</span>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <button class="btn-save-hr mb-3" id="saveHrBtn" onclick="saveHeartRate()">
+                💾 Save Heart Rate
+            </button>
+
+            <!-- Status -->
+            <div id="saveStatus" style="text-align:center;min-height:24px;"></div>
+
+            <!-- Log -->
+            <div style="margin-top:1rem;">
+                <div style="font-size:0.7rem;color:rgba(255,255,255,0.3);margin-bottom:0.5rem;">
+                    ACTIVITY LOG
+                </div>
+                <div id="activityLog"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let currentSession = null;
+    let currentSection = 1;
+
+    // Calculate HR difference live
+    document.getElementById('hrBefore').addEventListener('input', updateDiff);
+    document.getElementById('hrCurrent').addEventListener('input', updateDiff);
+
+    function updateDiff() {
+        const before  = parseInt(document.getElementById('hrBefore').value);
+        const current = parseInt(document.getElementById('hrCurrent').value);
+        const diffEl  = document.getElementById('hrDiff');
+
+        if (!isNaN(before) && !isNaN(current)) {
+            const diff = current - before;
+            diffEl.textContent = (diff >= 0 ? '+' : '') + diff + ' bpm';
+            diffEl.style.color = diff > 5 ? '#e94560' : diff > 0 ? '#f5a623' : '#38ef7d';
+        } else {
+            diffEl.textContent = '—';
+        }
+    }
+
+    async function loadSession() {
+        const sessionId = document.getElementById('sessionIdInput').value.trim();
+        if (!sessionId) {
+            alert('Please enter a session ID');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/GameData/session/${sessionId}/summary`);
+            const data = await response.json();
+
+            if (!data.success) {
+                alert('Session not found. Check the ID.');
+                return;
+            }
+
+            currentSession = sessionId;
+            document.getElementById('participantName').textContent = data.userName || 'Unknown';
+            document.getElementById('shortSessionId').textContent = sessionId.substring(0, 8) + '...';
+            document.getElementById('sessionInfo').style.display = 'block';
+            
+            addLog(`Session loaded: ${data.userName}`);
+        } catch (err) {
+            alert('Error loading session: ' + err.message);
+        }
+    }
+
+    function selectSection(section, btn) {
+        currentSection = section;
+        document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('currentSectionLabel').textContent = section;
+        addLog(`Switched to Section ${section}`);
+    }
+
+    async function saveHeartRate() {
+        if (!currentSession) {
+            alert('Load a session first');
+            return;
+        }
+
+        const hrBefore  = parseInt(document.getElementById('hrBefore').value);
+        const hrCurrent = parseInt(document.getElementById('hrCurrent').value);
+
+        if (isNaN(hrBefore) || isNaN(hrCurrent)) {
+            alert('Please enter both heart rate values');
+            return;
+        }
+
+        const btn = document.getElementById('saveHrBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const response = await fetch('/api/GameData/researcher/heartrate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId:          currentSession,
+                    sectionNumber:      currentSection,
+                    heartRate:          hrCurrent,
+                    heartRateBefore:    hrBefore,
+                    heartRateDifference: hrCurrent - hrBefore
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showStatus('✅ Saved successfully', 'success');
+                addLog(`S${currentSection}: HR ${hrBefore}→${hrCurrent} (+${hrCurrent - hrBefore})`);
+            } else {
+                showStatus('❌ ' + (data.error || 'Save failed'), 'error');
+            }
+        } catch (err) {
+            showStatus('❌ Error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '💾 Save Heart Rate';
+        }
+    }
+
+    function showStatus(message, type) {
+        const el = document.getElementById('saveStatus');
+        el.innerHTML = `<span class="status-badge status-${type}">${message}</span>`;
+        setTimeout(() => el.innerHTML = '', 3000);
+    }
+
+    function addLog(message) {
+        const log = document.getElementById('activityLog');
+        const time = new Date().toLocaleTimeString();
+        log.innerHTML = `<div class="log-entry">${time} — ${message}</div>` + log.innerHTML;
+        // Keep only last 5 entries
+        const entries = log.querySelectorAll('.log-entry');
+        if (entries.length > 5) entries[entries.length - 1].remove();
+    }
+</script>
+}

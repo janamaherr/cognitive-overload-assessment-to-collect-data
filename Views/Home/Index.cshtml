@@ -3,52 +3,68 @@
 }
 
 <style>
+    :root {
+        color-scheme: dark;
+    }
+
     .landing-shell {
         min-height: calc(100vh - 150px);
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 1.25rem 1rem 1.75rem;
+        padding: 2rem 1rem 2.5rem;
+        background:
+            radial-gradient(circle at top, rgba(72, 198, 239, 0.12), transparent 34%),
+            radial-gradient(circle at bottom, rgba(108, 99, 255, 0.12), transparent 28%);
     }
 
     .landing-card {
         width: 100%;
         max-width: 980px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 28px;
-        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(16px);
+        color: #f4f8ff;
+        text-align: center;
+        position: relative;
+    }
+
+    .landing-card::before {
+        content: "";
+        position: absolute;
+        inset: 1.25rem 0.75rem auto;
+        height: 120px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(72, 198, 239, 0.16), transparent 70%);
+        filter: blur(8px);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .landing-surface {
+        position: relative;
+        z-index: 1;
+        padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 24px;
+        background: rgba(6, 11, 22, 0.72);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(14px);
         overflow: hidden;
     }
 
     .landing-grid {
         display: grid;
-        grid-template-columns: 1.15fr 0.85fr;
-    }
-
-    .landing-hero {
-        padding: 2.2rem;
-        background:
-            radial-gradient(circle at top left, rgba(72, 198, 239, 0.18), transparent 30%),
-            radial-gradient(circle at bottom left, rgba(108, 99, 255, 0.2), transparent 32%);
-        color: #f4f8ff;
-    }
-
-    .landing-panel {
-        padding: 2.2rem;
-        background: rgba(7, 12, 23, 0.46);
-        border-left: 1px solid rgba(255, 255, 255, 0.08);
-        color: #f4f8ff;
+        grid-template-columns: 1.05fr 0.95fr;
     }
 
     .landing-badge {
-        display: inline-block;
-        margin-bottom: 1rem;
-        padding: 0.35rem 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.95rem;
+        padding: 0.36rem 0.8rem;
         border-radius: 999px;
-        background: linear-gradient(90deg, #6c63ff, #48c6ef);
-        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(244, 248, 255, 0.88);
         font-size: 0.72rem;
         font-weight: 800;
         letter-spacing: 0.12em;
@@ -56,71 +72,80 @@
     }
 
     .landing-title {
-        font-size: clamp(1.8rem, 3.4vw, 2.7rem);
-        line-height: 1.05;
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+        line-height: 1.08;
         font-weight: 900;
-        margin-bottom: 0.7rem;
         color: #fff;
     }
 
     .landing-copy {
-        color: rgba(244, 248, 255, 0.72);
-        font-size: 0.94rem;
-        line-height: 1.55;
-        margin-bottom: 1rem;
-        max-width: 42ch;
+        margin: 0.7rem auto 0;
+        max-width: 40ch;
+        color: rgba(244, 248, 255, 0.75);
+        font-size: 0.95rem;
+        line-height: 1.45;
     }
 
-    .landing-highlights {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.65rem;
-        margin-top: 0.8rem;
+    .landing-section {
+        margin-top: 1.15rem;
     }
 
-    .landing-highlight {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 14px;
-        padding: 0.72rem 0.78rem;
-    }
-
-    .landing-highlight-title {
-        color: #fff;
-        font-size: 0.82rem;
-        font-weight: 700;
-        margin-bottom: 0.2rem;
-    }
-
-    .landing-highlight-copy {
-        color: rgba(244, 248, 255, 0.62);
-        font-size: 0.74rem;
-        line-height: 1.35;
-        margin: 0;
-    }
-
-    .launch-title {
-        font-size: 1.35rem;
+    .section-heading {
+        margin: 0 0 0.85rem;
+        color: rgba(244, 248, 255, 0.54);
+        font-size: 0.76rem;
         font-weight: 800;
-        color: #fff;
-        margin-bottom: 0.35rem;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
     }
 
-    .launch-copy {
-        color: rgba(244, 248, 255, 0.62);
-        font-size: 0.86rem;
-        margin-bottom: 1rem;
+    .game-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.65rem;
+        text-align: left;
+    }
+
+    .game-item {
+        display: flex;
+        gap: 0.8rem;
+        align-items: flex-start;
+        padding: 0.68rem 0.8rem;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .game-icon {
+        width: 2rem;
+        flex: 0 0 2rem;
+        text-align: center;
+        font-size: 1.08rem;
+        line-height: 1.4;
+    }
+
+    .game-text {
+        color: rgba(244, 248, 255, 0.74);
+        font-size: 0.92rem;
+        line-height: 1.45;
+    }
+
+    .game-text strong {
+        display: block;
+        color: #fff;
+        font-size: 0.98rem;
+        font-weight: 800;
+        margin-bottom: 0.1rem;
     }
 
     .participant-form {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.65rem 0.8rem;
-        margin-bottom: 0.9rem;
-    }
-
-    .participant-field {
-        margin: 0;
+        gap: 0.7rem 0.75rem;
+        text-align: left;
     }
 
     .participant-field.full {
@@ -131,21 +156,20 @@
         display: block;
         margin-bottom: 0.28rem;
         color: rgba(244, 248, 255, 0.82);
-        font-size: 0.78rem;
+        font-size: 0.82rem;
         font-weight: 700;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
     }
 
     .launch-input {
         width: 100%;
-        background: rgba(255, 255, 255, 0.08);
-        border: 2px solid rgba(255, 255, 255, 0.1);
-        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
-        padding: 0.65rem 0.75rem;
-        font-size: 0.92rem;
-        margin: 0;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+        padding: 0.78rem 0.85rem;
+        font-size: 0.95rem;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, transform 0.18s ease;
     }
 
     .launch-input::placeholder {
@@ -154,175 +178,268 @@
 
     .launch-input:focus {
         outline: none;
-        background: rgba(255, 255, 255, 0.12);
-        border-color: rgba(72, 198, 239, 0.7);
-        box-shadow: 0 0 0 6px rgba(72, 198, 239, 0.12);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(72, 198, 239, 0.72);
+        box-shadow: 0 0 0 4px rgba(72, 198, 239, 0.1);
+        transform: translateY(-1px);
+    }
+
+    .privacy-list {
+        margin: 0.85rem 0 0;
+        padding-left: 1.1rem;
+        text-align: left;
+        color: rgba(244, 248, 255, 0.78);
+        font-size: 0.84rem;
+        line-height: 1.45;
+    }
+
+    .consent-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.6rem;
+        margin-top: 0.75rem;
+        text-align: left;
+        color: rgba(244, 248, 255, 0.88);
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .consent-row input {
+        margin-top: 0.18rem;
+        flex: 0 0 auto;
     }
 
     .launch-btn {
         width: 100%;
+        margin-top: 0.8rem;
         border: 0;
         border-radius: 999px;
-        padding: 0.78rem 1.1rem;
-        font-size: 0.92rem;
-        font-weight: 800;
+        padding: 0.92rem 1.1rem;
+        background: linear-gradient(90deg, #2f77ff, #48c6ef);
         color: #fff;
-        background: linear-gradient(90deg, #6c63ff, #48c6ef);
-        box-shadow: 0 16px 28px rgba(72, 198, 239, 0.22);
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
+        font-size: 1rem;
+        font-weight: 800;
+        box-shadow: 0 18px 32px rgba(47, 119, 255, 0.25);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
     }
 
     .launch-btn:hover {
         transform: translateY(-2px);
-        box-shadow: 0 22px 34px rgba(72, 198, 239, 0.26);
+        filter: brightness(1.03);
+        box-shadow: 0 22px 38px rgba(47, 119, 255, 0.32);
     }
 
-    .sections-strip {
-        margin-top: 0.9rem;
+    .launch-btn:focus-visible,
+    .launch-input:focus-visible,
+    .consent-row input:focus-visible {
+        outline: 2px solid rgba(72, 198, 239, 0.8);
+        outline-offset: 2px;
+    }
+
+    .microcopy {
+        margin: 0.55rem 0 0;
+        color: rgba(244, 248, 255, 0.56);
+        font-size: 0.76rem;
+        line-height: 1.4;
+    }
+
+    @@media (min-width: 768px) {
+        .participant-field:nth-child(odd):last-child {
+            grid-column: 1 / -1;
+        }
+    }
+
+    .landing-hero {
+        padding: 1.6rem 1.6rem 1.5rem;
+        text-align: left;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+            radial-gradient(circle at top left, rgba(72, 198, 239, 0.12), transparent 36%),
+            radial-gradient(circle at bottom left, rgba(108, 99, 255, 0.11), transparent 30%);
+    }
+
+    .landing-panel {
+        padding: 1.6rem 1.6rem 1.5rem;
+        text-align: left;
+        background: rgba(8, 13, 24, 0.5);
+    }
+
+    .landing-panel .section-heading,
+    .landing-panel .launch-label,
+    .landing-panel .privacy-list,
+    .landing-panel .consent-row,
+    .landing-panel .microcopy {
+        text-align: left;
+    }
+
+    .landing-panel .landing-section {
+        margin-top: 0;
+    }
+
+    .hero-copy-group {
+        max-width: 44ch;
+    }
+
+    .hero-list {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+        display: grid;
+        gap: 0.6rem;
+    }
+
+    .hero-list-item {
         display: flex;
-        flex-wrap: wrap;
-        gap: 0.45rem;
+        gap: 0.7rem;
+        align-items: flex-start;
+        color: rgba(244, 248, 255, 0.76);
+        font-size: 0.92rem;
+        line-height: 1.45;
     }
 
-    .sections-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.36rem 0.62rem;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(255, 255, 255, 0.07);
-        font-size: 0.73rem;
-        color: rgba(244, 248, 255, 0.9);
+    .hero-list-item strong {
+        display: block;
+        color: #fff;
+        font-weight: 800;
+        margin-bottom: 0.08rem;
     }
 
-    .section-dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-
-    .section-dot.memory { background: #e94560; box-shadow: 0 0 12px rgba(233, 69, 96, 0.65); }
-    .section-dot.words { background: #48c6ef; box-shadow: 0 0 12px rgba(72, 198, 239, 0.65); }
-    .section-dot.arrow { background: #f5a623; box-shadow: 0 0 12px rgba(245, 166, 35, 0.65); }
-
-    .followup-note {
-        margin-top: 0.55rem;
-        color: rgba(244, 248, 255, 0.55);
-        font-size: 0.72rem;
+    .hero-list-icon {
+        width: 1.7rem;
+        flex: 0 0 1.7rem;
+        text-align: center;
+        font-size: 1rem;
         line-height: 1.35;
+        margin-top: 0.05rem;
     }
 
-    @@media (max-width: 991.98px) {
+    .hero-footnote {
+        margin: 0.95rem 0 0;
+        color: rgba(244, 248, 255, 0.58);
+        font-size: 0.76rem;
+        line-height: 1.45;
+    }
+
+    @@media (max-width: 767.98px) {
+        .landing-shell {
+            padding: 1.1rem 0.8rem 1.6rem;
+        }
+
         .landing-grid {
             grid-template-columns: 1fr;
         }
 
+        .landing-hero {
+            border-right: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .landing-hero,
         .landing-panel {
-            border-left: 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 1.2rem 1rem 1rem;
+        }
+
+        .landing-copy {
+            font-size: 0.94rem;
+        }
+
+        .game-item {
+            padding: 0.8rem 0.82rem;
         }
 
         .participant-form {
             grid-template-columns: 1fr;
         }
-    }
 
-    @@media (max-width: 767.98px) {
-        .landing-shell {
-            padding: 1rem 0.75rem 2rem;
+        .launch-input {
+            padding: 0.72rem 0.78rem;
         }
 
-        .landing-hero,
-        .landing-panel {
-            padding: 1.25rem;
-        }
-
-        .landing-highlights {
-            grid-template-columns: 1fr;
+        .launch-btn {
+            padding: 0.95rem 1rem;
         }
     }
 </style>
 
 <div class="landing-shell">
-    <div class="landing-card">
-        <div class="landing-grid">
-            <section class="landing-hero">
-                <span class="landing-badge">Research Game Suite</span>
-                <h1 class="landing-title">Measure cognitive overload through play.</h1>
-                <p class="landing-copy">
-                    Participants complete three fast-paced mini games while the system captures behavioral signals such as mouse speed,
-                    typing patterns, hesitation pauses, and head movement.
-                </p>
+    <main class="landing-card">
+        <div class="landing-surface">
+            <div class="landing-grid">
+                <section class="landing-hero" aria-label="Study overview">
+                    <span class="landing-badge">Academic Study</span>
+                    <div class="hero-copy-group">
+                        <h1 class="landing-title">Measure cognitive overload through play</h1>
+                        <p class="landing-copy">Play 3 short tasks. We analyze interaction behavior.</p>
 
-                <div class="landing-highlights">
-                    <div class="landing-highlight">
-                        <div class="landing-highlight-title">Memory</div>
-                        <p class="landing-highlight-copy">Repeat visual patterns under time pressure.</p>
+                        <ul class="hero-list" aria-label="Tasks">
+                            <li class="hero-list-item">
+                                <div class="hero-list-icon" aria-hidden="true">🧠</div>
+                                <div><strong>Memory</strong><span>Repeat patterns under pressure</span></div>
+                            </li>
+                            <li class="hero-list-item">
+                                <div class="hero-list-icon" aria-hidden="true">🔤</div>
+                                <div><strong>Language</strong><span>Unscramble words quickly</span></div>
+                            </li>
+                            <li class="hero-list-item">
+                                <div class="hero-list-icon" aria-hidden="true">🎯</div>
+                                <div><strong>Precision</strong><span>Avoid collisions while shooting</span></div>
+                            </li>
+                        </ul>
+
+                        <p class="hero-footnote">Short, focused tasks. Built for an academic research setting.</p>
                     </div>
-                    <div class="landing-highlight">
-                        <div class="landing-highlight-title">Language</div>
-                        <p class="landing-highlight-copy">Unscramble category words before time runs out.</p>
-                    </div>
-                    <div class="landing-highlight">
-                        <div class="landing-highlight-title">Precision</div>
-                        <p class="landing-highlight-copy">Shoot arrows without colliding with existing ones.</p>
-                    </div>
-                </div>
-            </section>
+                </section>
 
-            <aside class="landing-panel">
-                <h2 class="launch-title">Begin assessment</h2>
-                <p class="launch-copy">Enter participant details to start a new tracked session.</p>
+                <section class="landing-panel" aria-label="Participant details">
+                    <h2 class="section-heading">Participant details</h2>
+                    <div class="participant-form">
+                        <div class="participant-field">
+                            <label for="firstName" class="launch-label">First Name</label>
+                            <input type="text" class="launch-input" id="firstName" required>
+                        </div>
 
-                <div class="participant-form">
-                    <div class="participant-field">
-                        <label for="firstName" class="launch-label">First Name</label>
-                        <input type="text" class="launch-input" id="firstName" placeholder="First name" required>
-                    </div>
+                        <div class="participant-field">
+                            <label for="lastName" class="launch-label">Last Name</label>
+                            <input type="text" class="launch-input" id="lastName" required>
+                        </div>
 
-                    <div class="participant-field">
-                        <label for="lastName" class="launch-label">Last Name</label>
-                        <input type="text" class="launch-input" id="lastName" placeholder="Last name" required>
-                    </div>
+                        <div class="participant-field">
+                            <label for="age" class="launch-label">Age</label>
+                            <input type="number" min="1" max="120" class="launch-input" id="age" required>
+                        </div>
 
-                    <div class="participant-field">
-                        <label for="age" class="launch-label">Age</label>
-                        <input type="number" min="1" max="120" class="launch-input" id="age" placeholder="Age" required>
-                    </div>
+                        <div class="participant-field">
+                            <label for="major" class="launch-label">Major</label>
+                            <input type="text" class="launch-input" id="major" required>
+                        </div>
 
-                    <div class="participant-field">
-                        <label for="major" class="launch-label">Major</label>
-                        <input type="text" class="launch-input" id="major" placeholder="Major" required>
-                    </div>
+                        <div class="participant-field">
+                            <label for="email" class="launch-label">Email</label>
+                            <input type="email" class="launch-input" id="email" required>
+                        </div>
 
-                    <div class="participant-field">
-                        <label for="phoneNumber" class="launch-label">Phone Number</label>
-                        <input type="tel" class="launch-input" id="phoneNumber" placeholder="Phone number" required>
+                        <div class="participant-field">
+                            <label for="phoneNumber" class="launch-label">Phone</label>
+                            <input type="tel" class="launch-input" id="phoneNumber" required>
+                        </div>
                     </div>
 
-                    <div class="participant-field">
-                        <label for="email" class="launch-label">Email for Follow-up</label>
-                        <input type="email" class="launch-input" id="email" placeholder="Email address" required>
-                    </div>
-                </div>
+                    <ul class="privacy-list">
+                        <li>No video is recorded or stored</li>
+                        <li>Data is used for academic research only</li>
+                        <li>Camera is used only for head movement tracking</li>
+                    </ul>
 
-                <button id="startBtn" class="launch-btn">Start session</button>
+                    <label class="consent-row" for="consentCheckbox">
+                        <input type="checkbox" id="consentCheckbox">
+                        <span>I consent to behavior data collection</span>
+                    </label>
 
-                <div class="sections-strip" aria-label="Sections included">
-                    <span class="sections-chip"><span class="section-dot memory"></span>Memory pattern</span>
-                    <span class="sections-chip"><span class="section-dot words"></span>Sentence memory</span>
-                    <span class="sections-chip"><span class="section-dot arrow"></span>Arrow precision</span>
-                </div>
-
-                <p class="followup-note">We may contact you by email or phone number for testing follow-up.</p>
-                <p class="followup-note" style="margin-top:0.45rem; color:rgba(244,248,255,0.86);">
-                    Please allow camera access when prompted. We only measure head movement (aggregate metrics); no images or video are recorded or stored.
-                </p>
-            </aside>
+                    <button id="startBtn" class="launch-btn">Start Assessment</button>
+                </section>
+            </div>
         </div>
-    </div>
+    </main>
 </div>
 
 @section Scripts {
@@ -457,9 +574,15 @@
             const major = document.getElementById('major').value.trim();
             const phoneNumber = document.getElementById('phoneNumber').value.trim();
             const email = document.getElementById('email').value.trim();
+            const consentCheckbox = document.getElementById('consentCheckbox');
 
             if (!firstName || !lastName || !ageText || !major || !phoneNumber || !email) {
                 alert('Please fill in all participant details.');
+                return;
+            }
+
+            if (!consentCheckbox.checked) {
+                alert('Please consent to behavior data collection to continue.');
                 return;
             }
 
@@ -478,28 +601,25 @@
                 email,
                 indexBehaviorData: buildIndexBehaviorData()
             };
-            
+
             try {
                 const response = await fetch('/Home/StartSession', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(sessionPayload)
                 });
-                
+
                 const data = await response.json();
 
                 if (!response.ok || !data.success) {
                     alert(data.error || 'Could not start session. Please check the form and try again.');
                     return;
                 }
-                
-                // Store sessionId in sessionStorage for later use
+
                 sessionStorage.setItem('sessionId', data.sessionId);
                 sessionStorage.setItem('userName', `${firstName} ${lastName}`);
 
                 stopIndexBehaviorTracking();
-                
-                // Redirect to first section
                 window.location.href = '/Questions/Section1';
             } catch (error) {
                 console.error('Error starting session:', error);

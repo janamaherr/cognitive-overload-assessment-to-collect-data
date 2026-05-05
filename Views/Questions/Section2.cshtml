@@ -1200,6 +1200,10 @@
                 if (data.success) {
                     showGlobalFeedback('Game saved!', true);
                     currentSavedGameId = data.id;
+                    if (finalHeartRate != null) {
+                        sessionStorage.setItem('section2HeartRate', String(finalHeartRate));
+                    }
+
                     await sendMLPrediction(
                         {
                             gameId: data.id,

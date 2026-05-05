@@ -878,6 +878,10 @@
         async function saveGameData(completed) {
             stopHRPolling();
 
+            const fallbackHr = await fetchLatestHR();
+            const finalHeartRate = liveHeartRate ?? fallbackHr ?? null;
+            const initialHeartRate = heartRateBefore ?? getStoredNumber('baselineHeartRate');
+
             // Stop tracking
             mouseTracker.stopTracking();
             headTracker.stopTracking();
@@ -925,9 +929,9 @@
                     averageHeadMovement: headData.averageHeadMovement || 0,
                     lookAwayCount: headData.lookAwayCount || 0,
                     headTiltCount: headData.tiltCount || 0,
-                    heartRate: liveHeartRate ?? null,
-                    heartRateDifference: (liveHeartRate && heartRateBefore) ? liveHeartRate - heartRateBefore : null,
-                    heartRatebefore: heartRateBefore ?? null
+                    heartRate: finalHeartRate,
+                    heartRateDifference: (finalHeartRate != null && initialHeartRate != null) ? finalHeartRate - initialHeartRate : null,
+                    heartRatebefore: initialHeartRate
                 },
                 gameData: {
                     gridSize: gameState.gridSize,
@@ -954,6 +958,10 @@
                 if (data.success) {
                     console.log("Game data saved successfully!");
                     currentSavedGameId = data.id;
+                    if (finalHeartRate != null) {
+                        sessionStorage.setItem('section1HeartRate', String(finalHeartRate));
+                    }
+
                     await sendMLPrediction(
                         {
                             gameId: data.id,

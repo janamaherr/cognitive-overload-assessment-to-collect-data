@@ -1038,6 +1038,9 @@ async function saveGameData(completed) {
         if (data.success) {
             console.log('✅ Game data saved successfully! ID:', data.id);
                     currentSavedGameId = data.id;
+            if (finalHeartRate != null) {
+                sessionStorage.setItem('section3HeartRate', String(finalHeartRate));
+            }
             await sendMLPrediction(
                 {
                     gameId: data.id,

@@ -1647,5 +1647,41 @@ public async Task<IActionResult> MLPredict([FromBody] JsonElement body)
             }
             return sb.ToString();
         }
+        public static int? LatestHeartRate = null;
+public static DateTime? LatestHRTimestamp = null;
+
+public class HRPushRequest
+{
+    public int HeartRate { get; set; }
+    public string? SessionId { get; set; }
+}
+
+[HttpPost("heartrate-push")]
+public IActionResult PushHeartRate([FromBody] HRPushRequest req)
+{
+    GameDataController.LatestHeartRate   = req.HeartRate;
+    GameDataController.LatestHRTimestamp = DateTime.UtcNow;
+
+    _logger.LogInformation("HR received: {HR} bpm", req.HeartRate);
+
+    return Ok(new {
+        success   = true,
+        heartRate = req.HeartRate,
+        timestamp = DateTime.UtcNow
+    });
+}
+
+[HttpGet("latest-hr")]
+public IActionResult GetLatestHR()
+{
+    return Ok(new {
+        heartRate  = GameDataController.LatestHeartRate,
+        timestamp  = GameDataController.LatestHRTimestamp,
+        ageSeconds = GameDataController.LatestHRTimestamp.HasValue
+            ? (DateTime.UtcNow - GameDataController.LatestHRTimestamp.Value)
+              .TotalSeconds
+            : (double?)null
+    });
+}
     }
 }

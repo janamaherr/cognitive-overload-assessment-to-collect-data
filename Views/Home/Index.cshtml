@@ -564,6 +564,21 @@
             document.removeEventListener('keydown', onIndexKeyDown);
         }
 
+        async function fetchLatestHR() {
+            try {
+                const res = await fetch('/api/GameData/latest-hr');
+                const data = await res.json();
+
+                if (data.heartRate && data.ageSeconds < 600) {
+                    return data.heartRate;
+                }
+
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
         document.addEventListener('mousemove', onIndexMouseMove);
         document.addEventListener('keydown', onIndexKeyDown);
 
@@ -603,6 +618,8 @@
             };
 
             try {
+                const baselineHr = await fetchLatestHR();
+
                 const response = await fetch('/Home/StartSession', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -618,6 +635,13 @@
 
                 sessionStorage.setItem('sessionId', data.sessionId);
                 sessionStorage.setItem('userName', `${firstName} ${lastName}`);
+                if (baselineHr != null) {
+                    sessionStorage.setItem('baselineHeartRate', String(baselineHr));
+                } else {
+                    sessionStorage.removeItem('baselineHeartRate');
+                }
+                sessionStorage.removeItem('section1HeartRate');
+                sessionStorage.removeItem('section2HeartRate');
 
                 stopIndexBehaviorTracking();
                 window.location.href = '/Questions/Section1';

@@ -1,4 +1,5 @@
 using MongoDB.Bson.Serialization.Attributes;
+using System.Text.Json.Serialization;
 
 namespace CognitiveOverloadLMS.Models
 {
@@ -32,15 +33,13 @@ namespace CognitiveOverloadLMS.Models
         public int HeadTiltCount { get; set; }
         
         [BsonElement("heartRate")]
-        [BsonIgnoreIfNull]
         public double? HeartRate { get; set; }
 
         [BsonElement("heartRateDifference")]
-        [BsonIgnoreIfNull]
         public double? HeartRateDifference { get; set; }
 
         [BsonElement("heartRatebefore")]
-        [BsonIgnoreIfNull]
+        [JsonPropertyName("heartRatebefore")]
         public int? InitialHeartRate { get; set; }
     }
     

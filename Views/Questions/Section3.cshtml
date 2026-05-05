@@ -336,6 +336,62 @@
             age: Number(sessionStorage.getItem('age') || 0)
         };
 
+        // Heart Rate polling
+        let liveHeartRate   = null;
+        let heartRateBefore = null;
+        let hrPollInterval  = null;
+
+        async function startHRPolling() {
+            liveHeartRate = null;
+            heartRateBefore = getStoredNumber('section2HeartRate')
+                ?? getStoredNumber('section1HeartRate')
+                ?? getStoredNumber('baselineHeartRate');
+
+            if (heartRateBefore != null) {
+                console.log('Initial HR from previous step:', heartRateBefore, 'bpm');
+            }
+
+            // Get resting HR at game start
+            const initial = await fetchLatestHR();
+            if (initial) {
+                if (heartRateBefore == null) {
+                    heartRateBefore = initial;
+                }
+                console.log('Resting HR:', heartRateBefore, 'bpm');
+            }
+
+            // Poll your website every 30 seconds
+            hrPollInterval = setInterval(async () => {
+                const hr = await fetchLatestHR();
+                if (hr) {
+                    liveHeartRate = hr;
+                    console.log('Live HR:', liveHeartRate, 'bpm');
+                }
+            }, 30000);
+        }
+
+        async function fetchLatestHR() {
+            try {
+                const res  = await fetch('/api/GameData/latest-hr');
+                const data = await res.json();
+
+                // Only use if data is less than 10 minutes old
+                if (data.heartRate && data.ageSeconds < 600) {
+                    return data.heartRate;
+                }
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        function stopHRPolling() {
+            if (hrPollInterval) {
+                clearInterval(hrPollInterval);
+                hrPollInterval = null;
+            }
+        }
+
         // Canvas setup
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -358,6 +414,14 @@
         const section3Leaderboard = [];
         let currentSavedGameId = null;
         let pendingSurveyAction = null;
+        let pendingMlPayload = null;
+
+        function getStoredNumber(key) {
+            const raw = sessionStorage.getItem(key);
+            if (raw == null || raw === '') return null;
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
 
         // Verify session
         if (!gameState.sessionId) {
@@ -703,6 +767,9 @@
             document.getElementById('shootBtn').disabled = false;
             document.getElementById('playAgainBtn').style.display = 'none';
             
+            // Start HR polling
+            startHRPolling();
+            
             mouseTracker.startTracking();
             behaviorLogger.startGame(gameState.gameType);
             if (isHeadTrackingEnabled) {
@@ -847,6 +914,15 @@
                     return;
                 }
 
+                if (pendingMlPayload) {
+                    await sendMLPrediction(
+                        pendingMlPayload.gameData,
+                        pendingMlPayload.behaviorData,
+                        pendingMlPayload.headData
+                    );
+                    pendingMlPayload = null;
+                }
+
                 bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal')).hide();
 
                 const playAgainBtn = document.getElementById('playAgainBtn');
@@ -872,6 +948,16 @@ async function saveGameData(completed) {
             alert('Error: No session found. Please go back to Home and select Section 3.');
             return;
         }
+        
+        // Stop HR polling
+        stopHRPolling();
+
+        const fallbackHr = await fetchLatestHR();
+        const finalHeartRate = liveHeartRate ?? fallbackHr ?? null;
+        const initialHeartRate = heartRateBefore
+            ?? getStoredNumber('section2HeartRate')
+            ?? getStoredNumber('section1HeartRate')
+            ?? getStoredNumber('baselineHeartRate');
         
         mouseTracker.stopTracking();
         const mouseData = mouseTracker.getData();
@@ -919,8 +1005,9 @@ async function saveGameData(completed) {
                 averageHeadMovement: headData.averageHeadMovement || 0,
                 lookAwayCount: headData.lookAwayCount || 0,
                 headTiltCount: headData.tiltCount || 0,
-                    heartRate: null,
-                    heartRatebefore: null
+                heartRate: finalHeartRate,
+                heartRatebefore: initialHeartRate,
+                heartRateDifference: (finalHeartRate != null && initialHeartRate != null) ? finalHeartRate - initialHeartRate : null
             },
             
             gameData: {

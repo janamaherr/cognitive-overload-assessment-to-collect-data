@@ -876,11 +876,15 @@
         }
         
         async function saveGameData(completed) {
-            stopHRPolling();
+            // Log HR sources for debugging
+            console.log('saveGameData: heartRateBefore variable =', heartRateBefore, 'session baseline =', getStoredNumber('baselineHeartRate'), 'liveHeartRate =', liveHeartRate);
 
             const fallbackHr = await fetchLatestHR();
             const finalHeartRate = liveHeartRate ?? fallbackHr ?? null;
             const initialHeartRate = heartRateBefore ?? getStoredNumber('baselineHeartRate');
+
+            // Stop HR polling after we sampled the latest values
+            stopHRPolling();
 
             // Stop tracking
             mouseTracker.stopTracking();

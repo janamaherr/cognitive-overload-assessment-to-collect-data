@@ -553,8 +553,8 @@
                 hesitationPauses,
                 averageMouseSpeed,
                 averageTypingSpeed,
-                heartRate: 0,
-                heartRatebefore: 0
+                heartRate: indexBehaviorTracker.liveHeartRate || 0,
+                heartRatebefore: indexBehaviorTracker.heartRateBefore || 0
             };
         }
 
@@ -562,6 +562,7 @@
             indexBehaviorTracker.isActive = false;
             document.removeEventListener('mousemove', onIndexMouseMove);
             document.removeEventListener('keydown', onIndexKeyDown);
+            stopIndexHRPolling();
         }
 
         async function fetchLatestHR() {
@@ -579,8 +580,37 @@
             }
         }
 
+        let indexHRIntervalId = null;
+
+        function stopIndexHRPolling() {
+            if (indexHRIntervalId) {
+                clearInterval(indexHRIntervalId);
+                indexHRIntervalId = null;
+            }
+        }
+
+        function startIndexHRPolling() {
+            if (indexHRIntervalId) return;
+            indexHRIntervalId = setInterval(async () => {
+                try {
+                    const hr = await fetchLatestHR();
+                    if (hr != null) {
+                        indexBehaviorTracker.liveHeartRate = hr;
+                        if (!indexBehaviorTracker.heartRateBefore) {
+                            indexBehaviorTracker.heartRateBefore = hr;
+                            sessionStorage.setItem('baselineHeartRate', String(hr));
+                        }
+                    }
+                } catch (e) {
+                    console.error('Index HR poll error', e);
+                }
+            }, 2000);
+        }
+
         document.addEventListener('mousemove', onIndexMouseMove);
         document.addEventListener('keydown', onIndexKeyDown);
+        // start HR polling early
+        startIndexHRPolling();
 
         document.getElementById('startBtn').addEventListener('click', async function() {
             const firstName = document.getElementById('firstName').value.trim();
@@ -607,6 +637,8 @@
                 return;
             }
 
+            // Build payload using the polled HR if available
+            const indexData = buildIndexBehaviorData();
             const sessionPayload = {
                 firstName,
                 lastName,
@@ -614,32 +646,48 @@
                 major,
                 phoneNumber,
                 email,
-                indexBehaviorData: buildIndexBehaviorData()
+                indexBehaviorData: indexData
             };
 
             try {
-                const baselineHr = await fetchLatestHR();
+                // Prefer the polled baseline, fallback to API
+                let capturedBaseline = indexData.heartRatebefore || indexData.heartRate || null;
+                if (capturedBaseline == null) {
+                    capturedBaseline = await fetchLatestHR();
+                }
 
+                if (capturedBaseline != null) {
+                    console.log('Captured baseline HR at start:', capturedBaseline);
+                    sessionStorage.setItem('baselineHeartRate', String(capturedBaseline));
+                } else {
+                    console.log('No baseline HR captured at start');
+                    sessionStorage.removeItem('baselineHeartRate');
+                }
+
+                console.log('Starting session with payload:', sessionPayload);
                 const response = await fetch('/Home/StartSession', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(sessionPayload)
                 });
 
-                const data = await response.json();
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (err) {
+                    console.error('Failed to parse StartSession response as JSON', err);
+                }
 
-                if (!response.ok || !data.success) {
-                    alert(data.error || 'Could not start session. Please check the form and try again.');
+                console.log('StartSession response status:', response.status, 'body:', data);
+
+                if (!response.ok || !data || !data.success) {
+                    console.error('StartSession failed:', data);
+                    alert(data?.error || 'Could not start session. Please check the form and try again.');
                     return;
                 }
 
                 sessionStorage.setItem('sessionId', data.sessionId);
                 sessionStorage.setItem('userName', `${firstName} ${lastName}`);
-                if (baselineHr != null) {
-                    sessionStorage.setItem('baselineHeartRate', String(baselineHr));
-                } else {
-                    sessionStorage.removeItem('baselineHeartRate');
-                }
                 sessionStorage.removeItem('section1HeartRate');
                 sessionStorage.removeItem('section2HeartRate');
 

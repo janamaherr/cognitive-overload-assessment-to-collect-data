@@ -332,13 +332,27 @@
         let liveHeartRate   = null;
         let heartRateBefore = null;
         let hrPollInterval  = null;
+        let roundNumber = 1;
+        let firstRoundSaved = false;
 
         async function startHRPolling() {
             liveHeartRate = null;
             heartRateBefore = getStoredNumber('baselineHeartRate');
+            console.log('startHRPolling: Read baseline from storage:', heartRateBefore);
 
             if (heartRateBefore != null) {
-                console.log('Baseline HR from index:', heartRateBefore, 'bpm');
+                console.log('✓ Baseline HR from index:', heartRateBefore, 'bpm');
+            } else {
+                console.log('✗ Baseline HR not found in storage, fetching from API');
+                // Fallback: if baseline was not read at index, fetch it now
+                const fallbackHr = await fetchLatestHR();
+                console.log('API fallback returned:', fallbackHr);
+                if (fallbackHr != null) {
+                    heartRateBefore = fallbackHr;
+                    sessionStorage.setItem('baselineHeartRate', String(fallbackHr));
+                    localStorage.setItem('baselineHeartRate', String(fallbackHr));
+                    console.log('✓ Set baseline from API fallback:', heartRateBefore, 'bpm');
+                }
             }
 
             // Get resting HR at game start
@@ -396,7 +410,7 @@
         let pendingMlPayload = null;
 
         function getStoredNumber(key) {
-            const raw = sessionStorage.getItem(key);
+            const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
             if (raw == null || raw === '') return null;
             const parsed = Number(raw);
             return Number.isFinite(parsed) ? parsed : null;
@@ -455,13 +469,13 @@
         });
         
         // Next game button
-        document.getElementById('nextGameBtn').addEventListener('click', function() {
-            openPostGameSurvey('next');
+        document.getElementById('nextGameBtn').addEventListener('click', async function() {
+            await openPostGameSurvey('next');
         });
         
         // Play again button
         document.getElementById('playAgainBtn').addEventListener('click', async function() {
-            openPostGameSurvey('replay');
+            await startNextRound();
         });
 
         document.getElementById('submitSurveyBtn').addEventListener('click', submitPostGameSurvey);
@@ -498,6 +512,8 @@
             gameState.gameCompleted = false;
             gameState.currentAttempts = 0;
             seconds = 0;
+            roundNumber = 1;
+            firstRoundSaved = false;
             currentSavedGameId = null;
             pendingSurveyAction = null;
             pendingMlPayload = null;
@@ -524,14 +540,47 @@
             console.log('Game initialized. Waiting for player turn to start timing.');
         }
         
-        async function resetAndPlayAgain() {
-            // Game data was already saved when the game ended — just start fresh.
-            await startNewGame();
+        async function startNextRound() {
+            if (!gameState.gameStarted) {
+                return;
+            }
+
+            gameState.startTime = null;
+            gameState.gameCompleted = false;
+            gameState.currentAttempts = 0;
+            gameState.showingSequence = false;
+            gameState.sequence = [];
+            gameState.userSequence = [];
+            seconds = 0;
+
+            document.getElementById('timer').textContent = '0';
+            document.getElementById('nextGameBtn').style.display = 'none';
+            document.getElementById('playAgainBtn').style.display = 'none';
+
+            document.querySelectorAll('.memory-cell').forEach(cell => {
+                cell.classList.remove('active', 'clicked', 'correct-click', 'wrong-click');
+                cell.style.pointerEvents = 'auto';
+            });
+
+            clearSurveyError();
+            generateGrid();
+            startLevel();
+            console.log('Starting round', roundNumber, 'without saving previous round data again.');
         }
 
-        function openPostGameSurvey(action) {
+        async function openPostGameSurvey(action) {
             pendingSurveyAction = action;
             clearSurveyError();
+
+            const surveyHr = await fetchLatestHR();
+            if (surveyHr != null) {
+                sessionStorage.setItem('baselineHeartRate', String(surveyHr));
+                localStorage.setItem('baselineHeartRate', String(surveyHr));
+                sessionStorage.setItem('section1HeartRate', String(surveyHr));
+                localStorage.setItem('section1HeartRate', String(surveyHr));
+                console.log('HR refreshed just before survey:', surveyHr, 'bpm');
+            }
+
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal'));
             modal.show();
         }
@@ -723,25 +772,7 @@
                 
                 // Check if sequence is complete
                 if (gameState.userSequence.length === gameState.sequence.length) {
-                    // Completed the sequence correctly!
-                    
-                    showFeedback('🎉 Perfect! You remembered the sequence!', true);
-                    gameState.gameCompleted = true;
-                    
-                    // Disable further clicks
-                    document.querySelectorAll('.memory-cell').forEach(cell => {
-                        cell.style.pointerEvents = 'none';
-                    });
-                    
-                    // Show next game options
-                    clearInterval(timerInterval);
-                    document.getElementById('nextGameBtn').style.display = 'inline-block';
-                    document.getElementById('playAgainBtn').style.display = 'inline-block';
-
-                    updateTimeScoreboard(seconds, true);
-                    
-                    // Save the successful game data
-                    saveGameData(true);
+                    completeRound(true);
                 }
             } else {
                 // Wrong click - show error
@@ -756,27 +787,42 @@
                 console.log('Wrong! Expected:', gameState.sequence[currentPosition], 'Got:', cellIndex);
                 
                 // Game over for this attempt
-                gameState.gameCompleted = true;
-                
-                // Disable further clicks
-                document.querySelectorAll('.memory-cell').forEach(cell => {
-                    cell.style.pointerEvents = 'none';
-                });
-                
-                clearInterval(timerInterval);
-                
-                // Show both play again and next game buttons
-                document.getElementById('playAgainBtn').style.display = 'inline-block';
-                document.getElementById('nextGameBtn').style.display = 'inline-block';
-
-                updateTimeScoreboard(seconds, false);
-
-                // Save the failed game data
-                saveGameData(false);
+                completeRound(false);
             }
             
             // Log behavior data
             behaviorLogger.logMouseClick(cellIndex);
+        }
+
+        function completeRound(completed) {
+            showFeedback(completed ? '🎉 Perfect! You remembered the sequence!' : '❌ Hard Luck! Wrong sequence!', completed);
+            gameState.gameCompleted = true;
+
+            document.querySelectorAll('.memory-cell').forEach(cell => {
+                cell.style.pointerEvents = 'none';
+            });
+
+            clearInterval(timerInterval);
+
+            if (roundNumber === 1) {
+                document.getElementById('playAgainBtn').style.display = 'inline-block';
+                document.getElementById('nextGameBtn').style.display = 'none';
+                updateTimeScoreboard(seconds, completed);
+                if (!firstRoundSaved) {
+                    firstRoundSaved = true;
+                    saveGameData(completed);
+                }
+            } else if (roundNumber === 2) {
+                document.getElementById('playAgainBtn').style.display = 'inline-block';
+                document.getElementById('nextGameBtn').style.display = 'none';
+            } else {
+                document.getElementById('playAgainBtn').style.display = 'none';
+                document.getElementById('nextGameBtn').style.display = 'inline-block';
+            }
+
+            if (roundNumber < 3) {
+                roundNumber++;
+            }
         }
 
         function updateTimeScoreboard(totalTimeSeconds, completed) {
@@ -877,11 +923,19 @@
         
         async function saveGameData(completed) {
             // Log HR sources for debugging
-            console.log('saveGameData: heartRateBefore variable =', heartRateBefore, 'session baseline =', getStoredNumber('baselineHeartRate'), 'liveHeartRate =', liveHeartRate);
+            console.log('=== saveGameData START ===');
+            console.log('heartRateBefore variable:', heartRateBefore);
+            console.log('sessionStorage baselineHeartRate:', sessionStorage.getItem('baselineHeartRate'));
+            console.log('localStorage baselineHeartRate:', localStorage.getItem('baselineHeartRate'));
+            console.log('liveHeartRate:', liveHeartRate);
 
             const fallbackHr = await fetchLatestHR();
+            console.log('fallbackHr from API:', fallbackHr);
             const finalHeartRate = liveHeartRate ?? fallbackHr ?? null;
             const initialHeartRate = heartRateBefore ?? getStoredNumber('baselineHeartRate');
+
+            console.log('Final computed values - initialHeartRate:', initialHeartRate, 'finalHeartRate:', finalHeartRate);
+            console.log('=== saveGameData END LOG ===');
 
             // Stop HR polling after we sampled the latest values
             stopHRPolling();
@@ -964,6 +1018,7 @@
                     currentSavedGameId = data.id;
                     if (finalHeartRate != null) {
                         sessionStorage.setItem('section1HeartRate', String(finalHeartRate));
+                        localStorage.setItem('section1HeartRate', String(finalHeartRate));
                     }
 
                     await sendMLPrediction(

@@ -637,32 +637,39 @@
                 return;
             }
 
-            // Build payload using the polled HR if available
-            const indexData = buildIndexBehaviorData();
-            const sessionPayload = {
-                firstName,
-                lastName,
-                age,
-                major,
-                phoneNumber,
-                email,
-                indexBehaviorData: indexData
-            };
-
             try {
-                // Prefer the polled baseline, fallback to API
-                let capturedBaseline = indexData.heartRatebefore || indexData.heartRate || null;
-                if (capturedBaseline == null) {
-                    capturedBaseline = await fetchLatestHR();
-                }
+                // Read HR as late as possible, right when the participant clicks Start.
+                console.log('Start Assessment clicked - stopping HR polling and reading latest HR');
+                stopIndexHRPolling();
+
+                let capturedBaseline = await fetchLatestHR();
+                console.log('fetchLatestHR returned:', capturedBaseline);
 
                 if (capturedBaseline != null) {
-                    console.log('Captured baseline HR at start:', capturedBaseline);
+                    console.log('✓ Captured baseline HR at start:', capturedBaseline, 'bpm');
                     sessionStorage.setItem('baselineHeartRate', String(capturedBaseline));
+                    localStorage.setItem('baselineHeartRate', String(capturedBaseline));
+                    indexBehaviorTracker.heartRateBefore = capturedBaseline;
+                    indexBehaviorTracker.liveHeartRate = capturedBaseline;
+                    console.log('✓ Stored in sessionStorage:', sessionStorage.getItem('baselineHeartRate'));
+                    console.log('✓ Stored in localStorage:', localStorage.getItem('baselineHeartRate'));
                 } else {
-                    console.log('No baseline HR captured at start');
+                    console.log('✗ No baseline HR captured at start - fetchLatestHR returned null');
                     sessionStorage.removeItem('baselineHeartRate');
+                    localStorage.removeItem('baselineHeartRate');
                 }
+
+                // Build payload after the fresh HR read so it contains the latest baseline.
+                const indexData = buildIndexBehaviorData();
+                const sessionPayload = {
+                    firstName,
+                    lastName,
+                    age,
+                    major,
+                    phoneNumber,
+                    email,
+                    indexBehaviorData: indexData
+                };
 
                 console.log('Starting session with payload:', sessionPayload);
                 const response = await fetch('/Home/StartSession', {

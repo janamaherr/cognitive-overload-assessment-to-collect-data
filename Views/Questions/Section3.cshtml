@@ -340,6 +340,8 @@
         let liveHeartRate   = null;
         let heartRateBefore = null;
         let hrPollInterval  = null;
+        let roundNumber = 1;
+        let firstRoundSaved = false;
 
         async function startHRPolling() {
             liveHeartRate = null;
@@ -390,6 +392,38 @@
                 clearInterval(hrPollInterval);
                 hrPollInterval = null;
             }
+        }
+
+        async function startNextRound() {
+            gameState.startTime = null;
+            gameState.endTime = null;
+            gameState.gameStarted = true;
+            gameState.gameCompleted = false;
+            gameState.gameLost = false;
+            gameState.arrowsShot = 0;
+            gameState.arrowsStuck = 0;
+            gameState.failedAttempts = 0;
+            gameState.arrowThrows = [];
+
+            arrows = [];
+            rotationAngle = 0;
+            flyingArrow = null;
+
+            document.getElementById('arrowCount').textContent = '0';
+            document.getElementById('shootBtn').disabled = false;
+            document.getElementById('playAgainBtn').style.display = 'none';
+            clearSurveyError();
+
+            startHRPolling();
+
+            mouseTracker.startTracking();
+            behaviorLogger.startGame(gameState.gameType);
+            if (isHeadTrackingEnabled) {
+                await headTracker.startTracking();
+            }
+
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            draw();
         }
 
         // Canvas setup
@@ -748,6 +782,8 @@
                 headTracker = new HeadTracker();
             }
             
+            roundNumber = 1;
+            firstRoundSaved = false;
             gameState.startTime = new Date().toISOString();
             gameState.gameStarted = true;
             gameState.gameCompleted = false;
@@ -785,10 +821,25 @@
         async function endGame(completed) {
             gameState.endTime = new Date().toISOString();
             document.getElementById('shootBtn').disabled = true;
-            document.getElementById('playAgainBtn').style.display = 'none';
 
-            await saveGameData(completed);
-            openPostGameSurvey('replay');
+            if (roundNumber === 1) {
+                if (!firstRoundSaved) {
+                    firstRoundSaved = true;
+                    await saveGameData(completed);
+                }
+                document.getElementById('playAgainBtn').style.display = 'inline-block';
+                roundNumber = 2;
+                return;
+            }
+
+            if (roundNumber === 2) {
+                document.getElementById('playAgainBtn').style.display = 'inline-block';
+                roundNumber = 3;
+                return;
+            }
+
+            document.getElementById('playAgainBtn').style.display = 'none';
+            await openPostGameSurvey('next');
         }
 
         // Show feedback
@@ -804,8 +855,8 @@
         }
 
         // Play again
-        function playAgain() {
-            startGame();
+        async function playAgain() {
+            await startNextRound();
         }
 
         function renderSection3Leaderboard() {
@@ -847,9 +898,21 @@
             }
         }
 
-        function openPostGameSurvey(action) {
+        async function openPostGameSurvey(action) {
             pendingSurveyAction = action;
             clearSurveyError();
+
+            const surveyHr = await fetchLatestHR();
+            if (surveyHr != null) {
+                heartRateBefore = surveyHr;
+                liveHeartRate = surveyHr;
+                sessionStorage.setItem('baselineHeartRate', String(surveyHr));
+                localStorage.setItem('baselineHeartRate', String(surveyHr));
+                sessionStorage.setItem('section3HeartRate', String(surveyHr));
+                localStorage.setItem('section3HeartRate', String(surveyHr));
+                console.log('HR refreshed just before survey:', surveyHr, 'bpm');
+            }
+
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('postGameSurveyModal'));
             modal.show();
         }

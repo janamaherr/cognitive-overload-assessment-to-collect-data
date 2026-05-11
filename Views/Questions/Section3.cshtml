@@ -157,6 +157,14 @@
         padding: 0.6rem 1.5rem;
         box-shadow: 0 8px 24px rgba(0,0,0,0.3);
     }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    #section3InstructionsText {
+        animation: fadeIn 0.8s ease-in forwards;
+    }
 </style>
 
 <div class="game-wrapper">
@@ -207,6 +215,24 @@
             <div class="form-check form-switch mb-0">
                 <input class="form-check-input" type="checkbox" id="headTrackingToggle">
                 <label class="form-check-label" for="headTrackingToggle">Enable head tracking <span style="opacity:0.6;">(may reduce performance)</span></label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section3 Instructions Modal -->
+<div class="modal fade" id="section3InstructionsModal" tabindex="-1" aria-labelledby="section3InstructionsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0" style="background:linear-gradient(90deg,#f5a623,#f04e23);border-radius:1.25rem 1.25rem 0 0;">
+                <h5 class="modal-title fw-bold" id="section3InstructionsLabel">🎯 Twisty Arrow Game</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-4" style="font-size:1.1rem;line-height:1.8;">
+                <div id="section3InstructionsText" style="animation: fadeIn 0.8s ease-in forwards;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-4 px-4 justify-content-center">
+                <button type="button" id="section3InstructionsStartBtn" class="btn" style="background:linear-gradient(90deg,#f5a623,#f04e23);color:#fff;font-weight:700;padding:0.6rem 1.8rem;border:0;border-radius:50px;">Ok!</button>
             </div>
         </div>
     </div>
@@ -1214,6 +1240,27 @@ async function saveGameData(completed) {
         });
 
         console.log('Twisty Arrow Game initialized with session:', gameState.sessionId);
+
+        // Show instructions modal on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const instructionsText = document.getElementById('section3InstructionsText');
+            instructionsText.innerHTML = `
+                <p><strong>You're now on the final challenge!</strong></p>
+                <p>Your task is to <strong>Shoot unlimited number of arrows into the rotating circle.</strong> 
+                <p>Each arrow will stick to the circle at the angle it hits.</p>
+                 <p>The circle is constantly rotating, so each new arrow's position will be affected by the current rotation.</p>
+                <p>But be careful! If your arrow hits another arrow already stuck in the circle, it's game over!</p>
+                <p><em>You've got this! Let's go!</em></p>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('section3InstructionsModal'));
+            
+            document.getElementById('section3InstructionsStartBtn').onclick = function() {
+                modal.hide();
+            };
+            
+            modal.show();
+        });
     </script>
 }
 

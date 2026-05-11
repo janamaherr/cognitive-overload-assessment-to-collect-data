@@ -612,6 +612,21 @@
         // start HR polling early
         startIndexHRPolling();
 
+        // Helper: read latest HR with short retry loop to increase odds of capture on click
+        async function readBaselineWithRetry(retries = 6, delayMs = 300) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const hr = await fetchLatestHR();
+                    console.log(`fetchLatestHR attempt ${i + 1}/${retries}:`, hr);
+                    if (hr != null) return hr;
+                } catch (e) {
+                    console.warn('fetchLatestHR attempt failed', e);
+                }
+                await new Promise(r => setTimeout(r, delayMs));
+            }
+            return null;
+        }
+
         document.getElementById('startBtn').addEventListener('click', async function() {
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
@@ -642,8 +657,9 @@
                 console.log('Start Assessment clicked - stopping HR polling and reading latest HR');
                 stopIndexHRPolling();
 
-                let capturedBaseline = await fetchLatestHR();
-                console.log('fetchLatestHR returned:', capturedBaseline);
+                // Try multiple quick fetch attempts to get the freshest HR reading
+                let capturedBaseline = await readBaselineWithRetry(6, 300);
+                console.log('readBaselineWithRetry returned:', capturedBaseline);
 
                 if (capturedBaseline != null) {
                     console.log('✓ Captured baseline HR at start:', capturedBaseline, 'bpm');
@@ -699,6 +715,7 @@
                 sessionStorage.removeItem('section2HeartRate');
 
                 stopIndexBehaviorTracking();
+                // Navigate to Section1
                 window.location.href = '/Questions/Section1';
             } catch (error) {
                 console.error('Error starting session:', error);

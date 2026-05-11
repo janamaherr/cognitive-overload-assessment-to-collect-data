@@ -203,6 +203,24 @@
     </div>
 </div>
 
+<!-- Section1 Instructions Modal -->
+<div class="modal fade" id="section1InstructionsModal" tabindex="-1" aria-labelledby="section1InstructionsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0" style="background:linear-gradient(90deg,#e94560,#f5a623);border-radius:1.25rem 1.25rem 0 0;">
+                <h5 class="modal-title fw-bold" id="section1InstructionsLabel">🧠 Memory Pattern Challenge</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-4" style="font-size:1.1rem;line-height:1.8;">
+                <div id="section1InstructionsText" style="animation: fadeIn 0.8s ease-in forwards;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-4 px-4 justify-content-center">
+                <button type="button" id="section1InstructionsStartBtn" class="btn" style="background:linear-gradient(90deg,#e94560,#f5a623);color:#fff;font-weight:700;padding:0.6rem 1.8rem;border:0;border-radius:50px;">Let's Play →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="postGameSurveyModal" tabindex="-1" aria-labelledby="postGameSurveyModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
@@ -294,6 +312,24 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section2 Instructions Modal -->
+<div class="modal fade" id="section2InstructionsModal" tabindex="-1" aria-labelledby="section2InstructionsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg" style="background:#161b2f;color:#fff;border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;">
+            <div class="modal-header border-0" style="background:linear-gradient(90deg,#6c63ff,#48c6ef);border-radius:1.25rem 1.25rem 0 0;">
+                <h5 class="modal-title fw-bold" id="section2InstructionsLabel">🔤 Word Unscrambling Challenge</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-4" style="font-size:1.1rem;line-height:1.8;">
+                <div id="section2InstructionsText" style="animation: fadeIn 0.8s ease-in; opacity:0;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-4 px-4 justify-content-center">
+                <button type="button" id="section2InstructionsStartBtn" class="btn" style="background:linear-gradient(90deg,#6c63ff,#48c6ef);color:#fff;font-weight:700;padding:0.6rem 1.8rem;border:0;border-radius:50px;">Let's Play →</button>
             </div>
         </div>
     </div>
@@ -932,7 +968,28 @@
             const fallbackHr = await fetchLatestHR();
             console.log('fallbackHr from API:', fallbackHr);
             const finalHeartRate = liveHeartRate ?? fallbackHr ?? null;
-            const initialHeartRate = heartRateBefore ?? getStoredNumber('baselineHeartRate');
+
+            // Resolve initialHeartRate with multiple fallbacks to be robust:
+            // 1) `heartRateBefore` variable (set during startHRPolling or modal start)
+            // 2) stored `section1HeartRate` (if previously captured)
+            // 3) stored `baselineHeartRate` (from Index)
+            // 4) last-resort API fetch
+            let initialHeartRate = null;
+            if (heartRateBefore != null) {
+                initialHeartRate = heartRateBefore;
+                console.log('initialHeartRate from variable heartRateBefore:', initialHeartRate);
+            } else if (getStoredNumber('section1HeartRate') != null) {
+                initialHeartRate = getStoredNumber('section1HeartRate');
+                console.log('initialHeartRate from section1HeartRate storage:', initialHeartRate);
+            } else if (getStoredNumber('baselineHeartRate') != null) {
+                initialHeartRate = getStoredNumber('baselineHeartRate');
+                console.log('initialHeartRate from baselineHeartRate storage:', initialHeartRate);
+            } else if (fallbackHr != null) {
+                initialHeartRate = fallbackHr;
+                console.log('initialHeartRate from fallback API fetch:', initialHeartRate);
+            } else {
+                console.log('initialHeartRate could not be resolved from any source');
+            }
 
             console.log('Final computed values - initialHeartRate:', initialHeartRate, 'finalHeartRate:', finalHeartRate);
             console.log('=== saveGameData END LOG ===');
@@ -1057,6 +1114,53 @@
                 console.error('Error saving game data:', error);
             }
         }
+
+        // Show instructions modal on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const instructionsText = document.getElementById('section1InstructionsText');
+            instructionsText.innerHTML = `
+                <p><strong>Watch and repeat!</strong></p>
+                <p>A sequence of colored squares will flash in order.</p>
+                <p>Pay close attention, then click the squares in the exact same order.</p>
+                <p>You have 3 trials to get it right. The sequence will always be 5 squares, but they can appear anywhere on the grid.</p>
+                <p>Good luck on your first challenge, and have fun playing!</p>
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('section1InstructionsModal'));
+            
+            document.getElementById('section1InstructionsStartBtn').onclick = async function() {
+                try {
+                    // small retry to capture baseline HR at the moment the user begins Section1
+                    const retries = 5;
+                    const delayMs = 300;
+                    let captured = null;
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            captured = await fetchLatestHR();
+                            console.log(`Section1 fetchLatestHR attempt ${i + 1}/${retries}:`, captured);
+                            if (captured != null) break;
+                        } catch (e) {
+                            console.warn('Section1 fetchLatestHR error', e);
+                        }
+                        await new Promise(r => setTimeout(r, delayMs));
+                    }
+
+                    if (captured != null) {
+                        sessionStorage.setItem('baselineHeartRate', String(captured));
+                        localStorage.setItem('baselineHeartRate', String(captured));
+                        console.log('Section1: Stored baselineHeartRate from modal start:', captured);
+                    } else {
+                        console.log('Section1: No baseline HR captured on modal start.');
+                    }
+                } catch (e) {
+                    console.warn('Error reading HR on Section1 modal start', e);
+                } finally {
+                    modal.hide();
+                }
+            };
+            
+            modal.show();
+        });
     </script>
 }
 

@@ -1246,10 +1246,13 @@ async function saveGameData(completed) {
             const instructionsText = document.getElementById('section3InstructionsText');
             instructionsText.innerHTML = `
                 <p><strong>You're now on the final challenge!</strong></p>
-                <p>Your task is to <strong>Shoot unlimited number of arrows into the rotating circle.</strong> 
-                <p>Each arrow will stick to the circle at the angle it hits.</p>
-                 <p>The circle is constantly rotating, so each new arrow's position will be affected by the current rotation.</p>
-                <p>But be careful! If your arrow hits another arrow already stuck in the circle, it's game over!</p>
+                <p>Shoot arrows into the spinning circle.</p>
+                <p>Simple rule: don't hit an arrow that's already there!</p>
+
+                <p>- Press Space to fire</p>
+                <p>- The circle never stops spinning</p>
+                <p>- One collision = Game Over</p>
+               
                 <p><em>You've got this! Let's go!</em></p>
             `;
             

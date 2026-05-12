@@ -1375,10 +1375,15 @@
             const instructionsText = document.getElementById('section2InstructionsText');
             instructionsText.innerHTML = `
                 <p><strong>Remember the sentence!</strong></p>
-                <p>A sentence appears briefly, then disappears.</p>
-                <p>Type it from memory. Sentences get longer!</p>  
-                <p><em>Accuracy matter!</em></p>
-                <p>You have 5 sentences to complete. Try to get as many right as you can!</p>
+                <p>A sentence appears for a few seconds, then vanishes.</p>
+                <p>Type it back exactly from memory.</p>
+
+                <p>- 5 sentences total — each one gets longer</p>
+                <p>- Spelling and word order matter</p>
+                <p>- You get more time to read as sentences grow</p>
+
+                <p>Tip: Read it aloud in your head while it's visible!</p>
+                
             `;
             
             const modal = new bootstrap.Modal(document.getElementById('section2InstructionsModal'));

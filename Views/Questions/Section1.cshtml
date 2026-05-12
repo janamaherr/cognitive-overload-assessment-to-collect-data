@@ -1119,11 +1119,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             const instructionsText = document.getElementById('section1InstructionsText');
             instructionsText.innerHTML = `
-                <p><strong>Watch and repeat!</strong></p>
-                <p>A sequence of colored squares will flash in order.</p>
-                <p>Pay close attention, then click the squares in the exact same order.</p>
-                <p>You have 3 trials to get it right. The sequence will always be 5 squares, but they can appear anywhere on the grid.</p>
-                <p>Good luck on your first challenge, and have fun playing!</p>
+            <p><strong>Watch and repeat!</strong></p>
+            <p>Watch the sequence of flashing squares carefully.</p>
+            <p>Then click them back in the exact same order.</p>
+
+            <p>- 5 squares flash — you repeat them</p>
+            <p>- 3 attempts allowed</p>
+            <p>- No time limit</p>
+
+            <p><em>Good luck on your first challenge, and have fun playing!</em></p>
             `;
             
             const modal = new bootstrap.Modal(document.getElementById('section1InstructionsModal'));

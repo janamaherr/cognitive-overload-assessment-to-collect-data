@@ -204,7 +204,7 @@
         <!-- Buttons -->
         <div class="d-flex justify-content-center gap-3 flex-wrap mb-3">
             <button id="startGameBtn" class="btn btn-game-success btn-lg">▶ Start Game</button>
-            <button id="shootBtn" class="btn btn-game-primary btn-lg" disabled>🎯 Shoot (Space)</button>
+            <button id="shootBtn" class="btn btn-game-primary btn-lg" disabled>🎯 Press Space</button>
             <button id="playAgainBtn" class="btn btn-game-secondary btn-lg" style="display:none;">Play Again</button>
         </div>
 
@@ -826,7 +826,14 @@
             
             document.getElementById('arrowCount').textContent = '0';
             document.getElementById('startGameBtn').style.display = 'none';
-            document.getElementById('shootBtn').disabled = false;
+            // Keep the on-screen shoot button informational (disabled) so players must press Space to fire.
+            const shootBtnEl = document.getElementById('shootBtn');
+            if (shootBtnEl) {
+                shootBtnEl.disabled = true;
+                shootBtnEl.setAttribute('aria-disabled', 'true');
+                shootBtnEl.style.pointerEvents = 'none';
+                shootBtnEl.style.cursor = 'default';
+            }
             document.getElementById('playAgainBtn').style.display = 'none';
             
             // Start HR polling
@@ -1225,14 +1232,19 @@ async function saveGameData(completed) {
         document.getElementById('startGameBtn').addEventListener('click', async function() {
             await startGame();
         });
-        document.getElementById('shootBtn').addEventListener('click', shootArrow);
         document.getElementById('playAgainBtn').addEventListener('click', playAgain);
 
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && !document.getElementById('shootBtn').disabled) {
-                e.preventDefault();
-                shootArrow();
+        // Space key starts game if not started, otherwise fires an arrow. The on-screen "Press Space" button is informational only.
+        document.addEventListener('keydown', async (e) => {
+            if (e.code !== 'Space') return;
+            e.preventDefault();
+            if (!gameState.gameStarted) {
+                await startGame();
+                return;
             }
+            if (gameState.gameLost || gameState.gameCompleted) return;
+            // Fire arrow on space during active game
+            shootArrow();
         });
 
         window.addEventListener('beforeunload', () => {
@@ -1252,7 +1264,7 @@ async function saveGameData(completed) {
                 <p>- Press Space to fire</p>
                 <p>- The circle never stops spinning</p>
                 <p>- One collision = Game Over</p>
-               
+               <p> You got 3 attempts </p>
                 <p><em>You've got this! Let's go!</em></p>
             `;
             

@@ -1480,6 +1480,219 @@ public async Task<IActionResult> MLPredict([FromBody] JsonElement body)
     }
 }
 
+[HttpGet("ml-predict-retroactive")]
+public Task<IActionResult> MLPredictRetroactiveGet(
+    [FromQuery] string sessionId,
+    [FromQuery] int? gameIndex = null,
+    [FromQuery] string? gameId = null,
+    [FromQuery] int? sectionNumber = null)
+{
+    return MLPredictRetroactiveCore(sessionId, gameIndex, gameId, sectionNumber);
+}
+
+[HttpPost("ml-predict-retroactive")]
+public Task<IActionResult> MLPredictRetroactivePost(
+    [FromQuery] string sessionId,
+    [FromQuery] int? gameIndex = null,
+    [FromQuery] string? gameId = null,
+    [FromQuery] int? sectionNumber = null)
+{
+    return MLPredictRetroactiveCore(sessionId, gameIndex, gameId, sectionNumber);
+}
+
+private async Task<IActionResult> MLPredictRetroactiveCore(
+    string sessionId,
+    int? gameIndex,
+    string? gameId,
+    int? sectionNumber)
+{
+    try
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return BadRequest(new { success = false, error = "sessionId is required" });
+        }
+
+        var session = await _userSessions.Find(s => s.Id == sessionId).FirstOrDefaultAsync();
+        if (session?.Games == null || session.Games.Count == 0)
+        {
+            return NotFound(new { success = false, error = "No games found for session" });
+        }
+
+        GameResult? targetGame = null;
+
+        if (!string.IsNullOrWhiteSpace(gameId))
+        {
+            targetGame = session.Games.FirstOrDefault(g => g.Id == gameId)
+                ?? await _gameResults.Find(g => g.Id == gameId).FirstOrDefaultAsync();
+        }
+
+        if (targetGame == null && gameIndex.HasValue)
+        {
+            if (gameIndex.Value >= 0 && gameIndex.Value < session.Games.Count)
+            {
+                targetGame = session.Games[gameIndex.Value];
+            }
+        }
+
+        if (targetGame == null && sectionNumber.HasValue)
+        {
+            targetGame = session.Games
+                .Where(g => g.SectionNumber == sectionNumber.Value)
+                .OrderByDescending(g => g.EndTime)
+                .FirstOrDefault();
+        }
+
+        if (targetGame == null)
+        {
+            targetGame = session.Games
+                .OrderByDescending(g => g.EndTime)
+                .FirstOrDefault();
+        }
+
+        if (targetGame == null)
+        {
+            return NotFound(new { success = false, error = "Game not found" });
+        }
+
+        var b = targetGame.BehaviorData ?? new BehaviorData();
+
+        var payload = new
+        {
+            gameId              = targetGame.Id,
+            sessionId            = targetGame.SessionId,
+            mouseMovementsCount  = (double)(b.MouseMovements?.Count ?? 0),
+            averageMouseSpeed    = b.AverageMouseSpeed,
+            typingEventsCount    = (double)(b.TypingEvents?.Count ?? 0),
+            averageTypingSpeed   = b.AverageTypingSpeed,
+            hesitationPausesCount = (double)(b.HesitationPauseCount),
+            averageHeadMovement  = b.AverageHeadMovement,
+            lookAwayCount        = (double)(b.LookAwayCount),
+            headTiltCount        = (double)(b.HeadTiltCount),
+            totalTimeSeconds     = targetGame.TotalTimeSeconds,
+            heartRate            = b.HeartRate,
+            heartRatebefore      = b.InitialHeartRate,
+            heartRateDifference  = b.HeartRateDifference,
+            age                  = session.Age,
+            gameType             = targetGame.SectionNumber,
+            sectionNumber        = targetGame.SectionNumber,
+            score                = (double)targetGame.Score,
+            completed            = targetGame.Completed ? 1 : 0
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+        using var client = new HttpClient();
+        var response = await client.PostAsync("http://localhost:8000/predict", content);
+        var result = await response.Content.ReadAsStringAsync();
+
+        _logger.LogInformation(
+            "Retroactive ML prediction for session {SessionId}, game {GameId}: {Result}",
+            sessionId,
+            targetGame.Id,
+            result);
+
+        GameMLPrediction? gamePrediction = null;
+        MLPredictionBreakdown? breakdown = null;
+        GameMLPredictionBreakdown? gameBreakdown = null;
+
+        if (TryParseJson(result, out var responseDocument))
+        {
+            var responseRoot = responseDocument.RootElement;
+            if (responseRoot.TryGetProperty("breakdown", out var breakdownRoot) && breakdownRoot.ValueKind == JsonValueKind.Object)
+            {
+                breakdown = new MLPredictionBreakdown
+                {
+                    Behavioral    = TryGetDouble(breakdownRoot, "behavioral"),
+                    Physiological = TryGetDouble(breakdownRoot, "physiological"),
+                    Contextual    = TryGetDouble(breakdownRoot, "contextual")
+                };
+
+                gameBreakdown = new GameMLPredictionBreakdown
+                {
+                    Behavioral    = breakdown.Behavioral,
+                    Physiological = breakdown.Physiological,
+                    Contextual    = breakdown.Contextual
+                };
+            }
+
+            gamePrediction = new GameMLPrediction
+            {
+                Prediction  = TryGetInt(responseRoot, "prediction"),
+                Probability = TryGetDouble(responseRoot, "probability"),
+                Label       = TryGetString(responseRoot, "label") ?? string.Empty,
+                Breakdown   = gameBreakdown
+            };
+        }
+
+        var log = new MLPredictionLog
+        {
+            SessionId      = targetGame.SessionId,
+            SectionNumber  = targetGame.SectionNumber,
+            GameType       = targetGame.SectionNumber,
+            Score          = targetGame.Score,
+            Completed      = targetGame.Completed ? 1 : 0,
+            Prediction     = gamePrediction?.Prediction ?? 0,
+            Probability    = gamePrediction?.Probability ?? 0,
+            Label          = gamePrediction?.Label ?? string.Empty,
+            Breakdown      = breakdown,
+            RequestPayload = BsonDocument.Parse(json),
+            ResponsePayload = SafeParseBson(result),
+            CreatedAtUtc   = DateTime.UtcNow
+        };
+
+        await _mlPredictionLogs.InsertOneAsync(log);
+
+        if (gamePrediction != null)
+        {
+            var gameFilter = BuildGameMatchFilter(targetGame);
+
+            await _gameResults.UpdateOneAsync(gameFilter,
+                Builders<GameResult>.Update.Set(g => g.MLPrediction, gamePrediction));
+
+            var sectionCollection = GetSectionCollection(targetGame.SectionNumber);
+            if (sectionCollection != null)
+            {
+                await sectionCollection.UpdateOneAsync(gameFilter,
+                    Builders<GameResult>.Update.Set(g => g.MLPrediction, gamePrediction));
+            }
+
+            var sessionToUpdate = await _userSessions.Find(s => s.Id == targetGame.SessionId).FirstOrDefaultAsync();
+            if (sessionToUpdate?.Games != null)
+            {
+                var index = sessionToUpdate.Games.FindIndex(existing => IsSameGame(existing, targetGame));
+                if (index >= 0)
+                {
+                    sessionToUpdate.Games[index].MLPrediction = gamePrediction;
+                    await _userSessions.UpdateOneAsync(
+                        s => s.Id == sessionToUpdate.Id,
+                        Builders<UserSession>.Update.Set(s => s.Games, sessionToUpdate.Games));
+                }
+            }
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return StatusCode((int)response.StatusCode, result);
+        }
+
+        return Ok(new
+        {
+            success = true,
+            sessionId,
+            gameId = targetGame.Id,
+            result = gamePrediction,
+            raw = result
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Retroactive ML prediction failed");
+        return BadRequest(new { success = false, error = ex.Message });
+    }
+}
+
         private static bool TryParseJson(string json, out JsonDocument document)
         {
             try

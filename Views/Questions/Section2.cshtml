@@ -600,7 +600,7 @@
                 const data = await res.json();
 
                 // Only use if data is less than 10 minutes old
-                if (data.heartRate && data.ageSeconds < 600) {
+                if (data.heartRate) {
                     return data.heartRate;
                 }
                 return null;
